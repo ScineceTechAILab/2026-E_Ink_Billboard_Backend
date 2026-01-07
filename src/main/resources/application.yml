@@ -1,3 +1,5 @@
 spring:
   application:
     name: E_Ink_Billboard_Backend
+  profiles:
+    active: dev
