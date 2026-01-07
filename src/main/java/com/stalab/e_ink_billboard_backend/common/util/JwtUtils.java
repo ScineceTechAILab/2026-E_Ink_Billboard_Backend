@@ -46,7 +46,7 @@ public class JwtUtils {
 
         return Jwts.builder()
                 .setClaims(claims)
-                .setSubject(userId.toString()) // 设置主题(通常是ID或用户名)
+                .setSubject(userId.toString())
                 .setIssuedAt(new Date()) // 签发时间
                 .setExpiration(new Date(System.currentTimeMillis() + expiration)) // 过期时间
                 .signWith(getSigningKey(), SignatureAlgorithm.HS256) // 签名算法
