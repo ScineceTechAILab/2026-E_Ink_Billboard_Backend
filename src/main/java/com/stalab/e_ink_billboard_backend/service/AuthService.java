@@ -49,6 +49,7 @@ public class AuthService {
 
         if (StrUtil.isBlank(openid)) {
             log.error("微信登录失败：{}", response);
+            log.error("code={}", code);
             throw new BusinessException(400, "微信登录失败");
         }
 
@@ -62,7 +63,7 @@ public class AuthService {
             user.setRole("VISITOR"); // 默认都是游客
             userMapper.insert(user);
         }
-
+        log.info("用户登录成功，ID：{}，角色：{}", user.getId(), user.getRole());
         // 4. 生成 Token (把 Role 塞进去)
         String token = jwtUtils.createToken(user.getId(), user.getRole());
 
