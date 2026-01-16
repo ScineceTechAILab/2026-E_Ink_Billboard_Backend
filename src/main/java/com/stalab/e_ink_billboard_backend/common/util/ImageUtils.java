@@ -106,6 +106,17 @@ public class ImageUtils {
         return result;
     }
 
+    public BufferedImage toDitheredImage(BufferedImage srcImg) {
+        // 1. 强制缩放
+        BufferedImage resized = new BufferedImage(TARGET_WIDTH, TARGET_HEIGHT, BufferedImage.TYPE_BYTE_GRAY);
+        Graphics2D g = resized.createGraphics();
+        g.drawImage(srcImg, 0, 0, TARGET_WIDTH, TARGET_HEIGHT, null);
+        g.dispose();
+
+        // 2. 调用之前的抖动算法逻辑 applyFloydSteinbergDithering(resized)
+        return applyFloydSteinbergDithering(resized);
+    }
+
     /**
      * 辅助方法：确保像素值在 0-255 之间
      */

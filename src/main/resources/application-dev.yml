@@ -10,6 +10,10 @@ spring:
     username: root
     password: ${pwd}
     driver-class-name: org.postgresql.Driver
+  servlet:
+    multipart:
+      max-file-size: 50MB      # 单个文件最大大小
+      max-request-size: 50MB
 
 wechat:
   appid: ${wechat_appid}
