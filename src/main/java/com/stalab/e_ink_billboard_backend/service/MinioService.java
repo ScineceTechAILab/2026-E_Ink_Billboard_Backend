@@ -6,6 +6,7 @@ import cn.hutool.core.util.StrUtil;
 import com.stalab.e_ink_billboard_backend.common.exception.BusinessException;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
+import io.minio.RemoveObjectArgs;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -56,12 +57,68 @@ public class MinioService {
                     .contentType(contentType)
                     .build());
 
-            // 返回可访问的 URL (假设桶是 Public 的)
             return endpoint + "/" + bucketName + "/" + fileName;
         } catch (Exception e) {
             log.error("MinIO上传异常: {}", fileName, e);
             throw new BusinessException(500,"存储服务异常");
         }
+    }
+
+    /**
+     * 删除文件
+     * @param url MinIO文件URL (格式: http://endpoint/bucket-name/object-name)
+     */
+    public void delete(String url) {
+        if (StrUtil.isBlank(url)) {
+            log.warn("删除文件URL为空，跳过");
+            return;
+        }
+
+        try {
+            // 从URL中提取object名称
+            // URL格式: http://endpoint/bucket-name/object-name
+            String objectName = extractObjectName(url);
+            if (StrUtil.isBlank(objectName)) {
+                log.warn("无法从URL中提取object名称: {}", url);
+                return;
+            }
+
+            minioClient.removeObject(RemoveObjectArgs.builder()
+                    .bucket(bucketName)
+                    .object(objectName)
+                    .build());
+
+            log.info("成功删除MinIO文件: {}", objectName);
+        } catch (Exception e) {
+            log.error("删除MinIO文件失败: {}", url, e);
+            // 不抛出异常，允许继续执行（文件可能已被删除或不存在）
+        }
+    }
+
+    /**
+     * 从MinIO URL中提取object名称
+     * @param url MinIO文件URL
+     * @return object名称
+     */
+    private String extractObjectName(String url) {
+        if (StrUtil.isBlank(url)) {
+            return null;
+        }
+
+        // URL格式: http://endpoint/bucket-name/object-name
+        // 或者: endpoint/bucket-name/object-name
+        String prefix = endpoint + "/" + bucketName + "/";
+        if (url.startsWith(prefix)) {
+            return url.substring(prefix.length());
+        }
+
+        // 如果URL包含bucket-name/，尝试提取后面的部分
+        int bucketIndex = url.indexOf(bucketName + "/");
+        if (bucketIndex >= 0) {
+            return url.substring(bucketIndex + bucketName.length() + 1);
+        }
+
+        return null;
     }
 
     // 生成唯一文件名: uuid.png
