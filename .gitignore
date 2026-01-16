@@ -33,3 +33,5 @@ build/
 .vscode/
 /.cursorrules
 /src/main/resources/dev-config.yml
+/video.bin
+/.local-config
