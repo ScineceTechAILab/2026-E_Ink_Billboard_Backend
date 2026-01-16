@@ -7,6 +7,8 @@ import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.Objects;
 
@@ -65,5 +67,21 @@ public class GlobalExceptionHandler {
         log.error("系统未知错误", e); // 打印堆栈到控制台，方便你排查
         // 千万别把 e.getMessage() 直接给前端，可能会暴露 SQL 结构等敏感信息
         return Response.builder().code(500).info("系统繁忙，请稍后再试").build();
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public Response<?> handleMaxSizeException(MaxUploadSizeExceededException e) {
+        log.warn("文件上传超限: {}", e.getMessage());
+        return Response.builder()
+                .code(400)
+                .info("上传文件大小超出限制，请上传 50MB 以内的文件")
+                .build();
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public Response<?> handleNoResourceFoundException(NoResourceFoundException e) {
+        // 这种错误不需要打印堆栈，只需要告诉前端 404 即可
+        return Response.builder().code(404).info("路径不存在，请检查 URL 是否正确").build();
+        // 或者返回 null，由 Spring Boot 默认处理
     }
 }
