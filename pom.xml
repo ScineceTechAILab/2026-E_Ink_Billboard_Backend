@@ -129,7 +129,12 @@
             <scope>runtime</scope>
         </dependency>
         <!-- jwt  end-->
-
+<!--        视频处理-->
+        <dependency>
+            <groupId>org.bytedeco</groupId>
+            <artifactId>javacv-platform</artifactId>
+            <version>1.5.10</version>
+        </dependency>
     </dependencies>
 
     <build>
