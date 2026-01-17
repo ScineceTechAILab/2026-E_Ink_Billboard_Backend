@@ -84,4 +84,45 @@ public class GlobalExceptionHandler {
         return Response.builder().code(404).info("路径不存在，请检查 URL 是否正确").build();
         // 或者返回 null，由 Spring Boot 默认处理
     }
+
+    /**
+     * 处理MQTT相关异常
+     * 场景：MQTT连接失败、消息发送失败等
+     */
+    @ExceptionHandler(org.eclipse.paho.client.mqttv3.MqttException.class)
+    public Response<?> handleMqttException(org.eclipse.paho.client.mqttv3.MqttException e) {
+        log.error("MQTT异常: {}", e.getMessage(), e);
+        // 根据错误码返回不同的提示信息
+        String message;
+        switch (e.getReasonCode()) {
+            case org.eclipse.paho.client.mqttv3.MqttException.REASON_CODE_BROKER_UNAVAILABLE:
+                message = "MQTT服务器不可用，请稍后重试";
+                break;
+            case org.eclipse.paho.client.mqttv3.MqttException.REASON_CODE_CLIENT_NOT_CONNECTED:
+                message = "MQTT客户端未连接，请稍后重试";
+                break;
+            case org.eclipse.paho.client.mqttv3.MqttException.REASON_CODE_CLIENT_TIMEOUT:
+                message = "MQTT连接超时，请稍后重试";
+                break;
+            default:
+                message = "MQTT通信失败，请稍后重试";
+        }
+        return Response.builder()
+                .code(500)
+                .info(message)
+                .build();
+    }
+
+    /**
+     * 处理消息通道异常（Spring Integration MQTT）
+     * 场景：MQTT消息发送到通道失败
+     */
+    @ExceptionHandler(org.springframework.messaging.MessageDeliveryException.class)
+    public Response<?> handleMessageDeliveryException(org.springframework.messaging.MessageDeliveryException e) {
+        log.error("MQTT消息发送失败", e);
+        return Response.builder()
+                .code(500)
+                .info("消息发送失败，请稍后重试")
+                .build();
+    }
 }
