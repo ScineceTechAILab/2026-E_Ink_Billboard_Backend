@@ -2,8 +2,11 @@ package com.stalab.e_ink_billboard_backend.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.stalab.e_ink_billboard_backend.common.enums.AuditStatus;
+import com.stalab.e_ink_billboard_backend.common.enums.DeviceStatus;
+import com.stalab.e_ink_billboard_backend.mapper.DeviceMapper;
 import com.stalab.e_ink_billboard_backend.mapper.ImageMapper;
 import com.stalab.e_ink_billboard_backend.mapper.VideoMapper;
+import com.stalab.e_ink_billboard_backend.mapper.po.Device;
 import com.stalab.e_ink_billboard_backend.mapper.po.Image;
 import com.stalab.e_ink_billboard_backend.mapper.po.Video;
 import com.stalab.e_ink_billboard_backend.model.vo.StatsVO;
@@ -22,10 +25,12 @@ public class AdminService {
 
     private final ImageMapper imageMapper;
     private final VideoMapper videoMapper;
+    private final DeviceMapper deviceMapper;
 
-    public AdminService(ImageMapper imageMapper, VideoMapper videoMapper) {
+    public AdminService(ImageMapper imageMapper, VideoMapper videoMapper, DeviceMapper deviceMapper) {
         this.imageMapper = imageMapper;
         this.videoMapper = videoMapper;
+        this.deviceMapper = deviceMapper;
     }
 
     /**
@@ -33,8 +38,12 @@ public class AdminService {
      * @return 统计数据
      */
     public StatsVO getStats() {
-        // 1. 统计在线设备数（暂时返回0，待设备功能实现后补充）
-        int onlineDevices = 0;
+        // 1. 统计在线设备数
+        long onlineDevicesCount = deviceMapper.selectCount(
+                new LambdaQueryWrapper<Device>()
+                        .eq(Device::getStatus, DeviceStatus.ONLINE)
+        );
+        int onlineDevices = (int) onlineDevicesCount;
 
         // 2. 统计待审核内容数量
         // Image中auditStatus为PENDING的数量
