@@ -371,15 +371,22 @@ public class PlayQueueService {
      * @return 如果即将到期返回true
      */
     public boolean isCurrentExpiringSoon(Long deviceId, long aheadSeconds) {
-        String currentKey = String.format(CURRENT_KEY_PREFIX, deviceId);
-        long ttl = redisTemplate.getExpire(currentKey, TimeUnit.SECONDS);
+        try {
+            String currentKey = String.format(CURRENT_KEY_PREFIX, deviceId);
+            Long ttl = redisTemplate.getExpire(currentKey, TimeUnit.SECONDS);
 
-        // ttl为-2表示键不存在，-1表示键存在但无过期时间
-        if (ttl <= 0) {
-            return true; // 键不存在或已过期
+            // ttl为null或-2表示键不存在，-1表示键存在但无过期时间
+            if (ttl == null || ttl <= 0) {
+                return true; // 键不存在或已过期
+            }
+
+            return ttl <= aheadSeconds;
+        } catch (Exception e) {
+            // Redis连接失败时，记录警告但不抛出异常，避免影响调度任务
+            log.warn("检查播放内容到期时间失败，假设已到期: deviceId={}", deviceId, e);
+            // 返回true，让调度器尝试切换内容（如果Redis恢复，会正常处理）
+            return true;
         }
-
-        return ttl <= aheadSeconds;
     }
 
     /**
