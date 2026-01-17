@@ -14,6 +14,17 @@ spring:
     multipart:
       max-file-size: 50MB      # 单个文件最大大小
       max-request-size: 50MB
+  data:
+    redis:
+      host: 62.234.92.187
+      port: 6379
+      password: redis_password123
+      timeout: 3000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
 
 wechat:
   appid: ${wechat_appid}
@@ -31,3 +42,40 @@ minio:
   access-key: minioadmin
   secret-key: minio_password123
   bucket-name: eink-images
+  # 是否使用Presigned URL（如果bucket是私有的，必须设为true）
+  # 如果bucket是公开的，可以设为false直接使用永久URL
+  use-presigned-url: true
+  # Presigned URL的有效期（小时），默认2小时
+  # 建议设置为1-2小时，确保ESP32有足够时间下载
+  presigned-url-expiry-hours: 2
+
+mqtt:
+  # MQTT Broker地址（EMQX服务器）
+  broker-url: tcp://62.234.92.187:1883
+  # MQTT用户名
+  username: admin
+  # MQTT密码
+  password: emqx_password123
+  # MQTT客户端ID（唯一标识，使用随机值避免冲突）
+  client-id: eink-backend-${random.value}
+  # 默认QoS等级（0-最多一次，1-至少一次，2-仅一次）
+  qos: 1
+
+# 播放队列配置
+play-queue:
+  # 游客内容播放时长（秒）
+  visitor-play-duration: 120
+  # 管理员内容播放时长（秒，0表示不限制）
+  admin-play-duration: 0
+  # 游客每日最大播放数量
+  visitor-daily-limit: 5
+  # 播放轮询间隔（秒）
+  poll-interval: 30
+  # 提前切换时间（秒，在播放结束前多少秒开始切换）
+  switch-ahead-time: 10
+
+
+logging:
+  level:
+    root: info
+    com.stalab.e_ink_billboard_backend: debug

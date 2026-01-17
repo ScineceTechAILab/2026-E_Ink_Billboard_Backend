@@ -4,15 +4,18 @@ import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.lang.UUID;
 import cn.hutool.core.util.StrUtil;
 import com.stalab.e_ink_billboard_backend.common.exception.BusinessException;
+import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
+import io.minio.http.Method;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
@@ -28,6 +31,19 @@ public class MinioService {
 
     @Value("${minio.endpoint}")
     private String endpoint;
+
+    /**
+     * 是否使用Presigned URL（如果bucket是私有的，必须设为true）
+     * 如果bucket是公开的，可以设为false直接使用永久URL
+     */
+    @Value("${minio.use-presigned-url:true}")
+    private boolean usePresignedUrl;
+
+    /**
+     * Presigned URL的有效期（小时），默认2小时
+     */
+    @Value("${minio.presigned-url-expiry-hours:2}")
+    private int presignedUrlExpiryHours;
 
     public MinioService(MinioClient minioClient) {
         this.minioClient = minioClient;
@@ -96,26 +112,81 @@ public class MinioService {
     }
 
     /**
+     * 获取文件的下载URL（用于推送到ESP32）
+     * 如果配置了使用Presigned URL，则动态生成；否则返回永久URL
+     *
+     * @param storedUrl 数据库中存储的URL（可能是永久URL或object名称）
+     * @return 可用于下载的URL
+     */
+    public String getDownloadUrl(String storedUrl) {
+        if (StrUtil.isBlank(storedUrl)) {
+            throw new BusinessException(400, "文件URL为空");
+        }
+
+        // 如果不需要Presigned URL（bucket是公开的），直接返回存储的URL
+        if (!usePresignedUrl) {
+            return storedUrl;
+        }
+
+        // 需要生成Presigned URL
+        String objectName = extractObjectName(storedUrl);
+        if (StrUtil.isBlank(objectName)) {
+            // 如果无法提取object名称，可能存储的就是object名称本身
+            objectName = storedUrl;
+        }
+
+        try {
+            return minioClient.getPresignedObjectUrl(
+                    GetPresignedObjectUrlArgs.builder()
+                            .method(Method.GET)
+                            .bucket(bucketName)
+                            .object(objectName)
+                            .expiry(presignedUrlExpiryHours, TimeUnit.HOURS)
+                            .build()
+            );
+        } catch (Exception e) {
+            log.error("生成Presigned URL失败: objectName={}", objectName, e);
+            throw new BusinessException(500, "生成下载链接失败");
+        }
+    }
+
+    /**
      * 从MinIO URL中提取object名称
-     * @param url MinIO文件URL
+     * @param url MinIO文件URL（可能是永久URL或Presigned URL）
      * @return object名称
      */
-    private String extractObjectName(String url) {
+    public String extractObjectName(String url) {
         if (StrUtil.isBlank(url)) {
             return null;
+        }
+
+        // 先移除URL中的查询参数（Presigned URL可能包含?X-Amz-...）
+        String urlWithoutQuery = url;
+        int queryIndex = url.indexOf('?');
+        if (queryIndex >= 0) {
+            urlWithoutQuery = url.substring(0, queryIndex);
         }
 
         // URL格式: http://endpoint/bucket-name/object-name
         // 或者: endpoint/bucket-name/object-name
         String prefix = endpoint + "/" + bucketName + "/";
-        if (url.startsWith(prefix)) {
-            return url.substring(prefix.length());
+        if (urlWithoutQuery.startsWith(prefix)) {
+            return urlWithoutQuery.substring(prefix.length());
         }
 
         // 如果URL包含bucket-name/，尝试提取后面的部分
-        int bucketIndex = url.indexOf(bucketName + "/");
+        int bucketIndex = urlWithoutQuery.indexOf(bucketName + "/");
         if (bucketIndex >= 0) {
-            return url.substring(bucketIndex + bucketName.length() + 1);
+            String objectName = urlWithoutQuery.substring(bucketIndex + bucketName.length() + 1);
+            // 如果对象名包含路径分隔符，需要URL解码
+            // 但通常我们的对象名不包含特殊字符，所以直接返回
+            return objectName;
+        }
+
+        // 如果以上都不匹配，可能存储的就是对象名本身（不包含路径）
+        // 检查是否包含斜杠，如果不包含，可能是纯对象名
+        if (!urlWithoutQuery.contains("/")) {
+            return urlWithoutQuery;
         }
 
         return null;
