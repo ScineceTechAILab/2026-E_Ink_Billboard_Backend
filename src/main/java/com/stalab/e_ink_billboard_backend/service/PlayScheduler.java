@@ -52,10 +52,22 @@ public class PlayScheduler {
     public void pollPlayQueue() {
         try {
             // 查询所有在线设备
-            List<Device> onlineDevices = deviceMapper.selectList(
-                    new LambdaQueryWrapper<Device>()
-                            .eq(Device::getStatus, DeviceStatus.ONLINE)
-            );
+            List<Device> onlineDevices;
+            try {
+                onlineDevices = deviceMapper.selectList(
+                        new LambdaQueryWrapper<Device>()
+                                .eq(Device::getStatus, DeviceStatus.ONLINE)
+                );
+            } catch (Exception e) {
+                log.error("查询在线设备失败，可能是数据库连接问题", e);
+                // 数据库连接失败时，不继续执行，等待下次调度
+                return;
+            }
+
+            if (onlineDevices == null || onlineDevices.isEmpty()) {
+                log.debug("没有在线设备");
+                return;
+            }
 
             for (Device device : onlineDevices) {
                 try {
@@ -72,7 +84,14 @@ public class PlayScheduler {
                             log.debug("设备播放队列为空: deviceId={}", device.getId());
                         }
                     }
+                } catch (org.springframework.dao.QueryTimeoutException e) {
+                    // Redis超时异常，记录警告但继续处理其他设备
+                    log.warn("处理设备播放队列超时（Redis连接问题）: deviceId={}", device.getId(), e);
+                } catch (org.springframework.dao.DataAccessException e) {
+                    // 数据库或Redis访问异常，记录警告但继续处理其他设备
+                    log.warn("处理设备播放队列失败（数据访问异常）: deviceId={}", device.getId(), e);
                 } catch (Exception e) {
+                    // 其他异常，记录错误但继续处理其他设备
                     log.error("处理设备播放队列失败: deviceId={}", device.getId(), e);
                 }
             }

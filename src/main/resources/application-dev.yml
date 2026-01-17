@@ -10,6 +10,23 @@ spring:
     username: root
     password: ${pwd}
     driver-class-name: org.postgresql.Driver
+    # HikariCP连接池配置
+    hikari:
+      # 连接池最小空闲连接数
+      minimum-idle: 5
+      # 连接池最大连接数
+      maximum-pool-size: 20
+      # 连接超时时间（毫秒）
+      connection-timeout: 30000
+      # 连接最大生命周期（毫秒），建议设置为比数据库服务器连接超时时间短
+      # PostgreSQL默认连接超时通常是30分钟，这里设置为25分钟
+      max-lifetime: 1500000
+      # 空闲连接存活时间（毫秒）
+      idle-timeout: 600000
+      # 连接测试查询
+      connection-test-query: SELECT 1
+      # 连接泄漏检测超时时间（毫秒），0表示禁用
+      leak-detection-threshold: 60000
   servlet:
     multipart:
       max-file-size: 50MB      # 单个文件最大大小
@@ -19,12 +36,17 @@ spring:
       host: 62.234.92.187
       port: 6379
       password: redis_password123
-      timeout: 3000ms
+      # 增加超时时间到10秒，避免网络波动导致超时
+      timeout: 10000ms
       lettuce:
         pool:
           max-active: 8
           max-idle: 8
-          min-idle: 0
+          min-idle: 2
+        # 关闭超时时间（毫秒）
+        shutdown-timeout: 200ms
+      # 连接超时时间（毫秒）
+      connect-timeout: 5000ms
 
 wechat:
   appid: ${wechat_appid}
