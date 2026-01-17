@@ -58,14 +58,11 @@ public class MqttConfig {
         // 设置自动重连
         options.setAutomaticReconnect(true);
 
-        // 设置最大重连间隔（秒）
-        options.setMaxReconnectDelay(30);
-
         // 设置清理会话（false表示持久会话，离线消息可以保留）
         options.setCleanSession(false);
 
-        // 设置连接超时时间（秒），增加超时时间避免网络延迟导致连接失败
-        options.setConnectionTimeout(60);
+        // 设置连接超时时间（秒）
+        options.setConnectionTimeout(30);
 
         // 设置保活间隔（秒）
         options.setKeepAliveInterval(60);
@@ -129,10 +126,13 @@ public class MqttConfig {
             topics
         );
 
-        // 增加订阅超时时间（毫秒），避免网络延迟导致订阅失败
+        // 增加订阅超时时间（毫秒），避免订阅超时
         adapter.setCompletionTimeout(30000); // 30秒
         adapter.setQos(qos);
         adapter.setOutputChannel(mqttInboundChannel());
+
+        // 设置自动启动（默认true）
+        adapter.setAutoStartup(true);
 
         // 设置消息转换器（保持byte[]格式，在监听器中手动用UTF-8解码，避免中文乱码）
         DefaultPahoMessageConverter converter = new DefaultPahoMessageConverter();
