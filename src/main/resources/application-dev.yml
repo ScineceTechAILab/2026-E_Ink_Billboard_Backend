@@ -1,0 +1,103 @@
+server:
+  port: 8083
+
+spring:
+  config:
+    import: classpath:dev-config.yml
+    # 1. 数据库连接配置
+  datasource:
+    url: jdbc:postgresql://${myip}:5432/postgres?currentSchema=public
+    username: root
+    password: ${pwd}
+    driver-class-name: org.postgresql.Driver
+    # HikariCP连接池配置
+    hikari:
+      # 连接池最小空闲连接数
+      minimum-idle: 5
+      # 连接池最大连接数
+      maximum-pool-size: 20
+      # 连接超时时间（毫秒）
+      connection-timeout: 30000
+      # 连接最大生命周期（毫秒），建议设置为比数据库服务器连接超时时间短
+      # PostgreSQL默认连接超时通常是30分钟，这里设置为25分钟
+      max-lifetime: 1500000
+      # 空闲连接存活时间（毫秒）
+      idle-timeout: 600000
+      # 连接测试查询
+      connection-test-query: SELECT 1
+      # 连接泄漏检测超时时间（毫秒），0表示禁用
+      leak-detection-threshold: 60000
+  servlet:
+    multipart:
+      max-file-size: 50MB      # 单个文件最大大小
+      max-request-size: 50MB
+  data:
+    redis:
+      host: ${myip}
+      port: 6379
+      password: ${redis_password}
+      # 增加超时时间到10秒，避免网络波动导致超时
+      timeout: 10000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 2
+        # 关闭超时时间（毫秒）
+        shutdown-timeout: 200ms
+      # 连接超时时间（毫秒）
+      connect-timeout: 5000ms
+
+wechat:
+  appid: ${wechat_appid}
+  secret: ${wechat_secret}
+
+
+jwt:
+  secret: ${jwt_secret}
+  # 过期时间：7天 (1000 * 60 * 60 * 24 * 7)
+  expiration: 604800000
+  header: Authorization
+
+minio:
+  endpoint: http://${myip}:9000
+  access-key: ${minio_access_key}
+  secret-key: ${minio_secret_key}
+  bucket-name: eink-images
+  # 是否使用Presigned URL（如果bucket是私有的，必须设为true）
+  # 如果bucket是公开的，可以设为false直接使用永久URL
+  use-presigned-url: true
+  # Presigned URL的有效期（小时），默认2小时
+  # 建议设置为1-2小时，确保ESP32有足够时间下载
+  presigned-url-expiry-hours: 2
+
+mqtt:
+  # MQTT Broker地址（EMQX服务器）
+  broker-url: tcp://${myip}:1883
+  # MQTT用户名
+  username: ${emqx_username}
+  # MQTT密码
+  password: ${emqx_password}
+  # MQTT客户端ID（唯一标识，使用随机值避免冲突）
+  client-id: eink-backend-${random.value}
+  # 默认QoS等级（0-最多一次，1-至少一次，2-仅一次）
+  qos: 1
+
+# 播放队列配置
+play-queue:
+  # 游客内容播放时长（秒）
+  visitor-play-duration: 120
+  # 管理员内容播放时长（秒，0表示不限制）
+  admin-play-duration: 0
+  # 游客每日最大播放数量
+  visitor-daily-limit: 5
+  # 播放轮询间隔（秒）
+  poll-interval: 30
+  # 提前切换时间（秒，在播放结束前多少秒开始切换）
+  switch-ahead-time: 10
+
+
+logging:
+  level:
+    root: info
+    com.stalab.e_ink_billboard_backend: debug
