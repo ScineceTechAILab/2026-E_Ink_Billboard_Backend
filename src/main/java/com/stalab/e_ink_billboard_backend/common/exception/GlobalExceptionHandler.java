@@ -32,6 +32,7 @@ public class GlobalExceptionHandler {
                 .build();
     }
 
+
     /**
      * 3. 拦截参数校验异常 (@Valid / @Validated)
      * 场景：DTO 里写了 @NotNull，但前端没传值，Spring 会抛出这个异常

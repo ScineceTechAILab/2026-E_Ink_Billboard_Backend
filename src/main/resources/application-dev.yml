@@ -52,6 +52,14 @@ wechat:
   appid: ${wechat_appid}
   secret: ${wechat_secret}
 
+feishu:
+  app-id: ${feishu_app_id}
+  app-secret: ${feishu_app_secret}
+  oauth-authorize-url: https://open.feishu.cn/open-apis/authen/v1/authorize
+  oauth-token-url: https://open.feishu.cn/open-apis/authen/v2/oauth/token
+  user-info-url: https://open.feishu.cn/open-apis/authen/v1/user_info
+  redirect-uri: http://localhost:8083/api/auth/feishu/callback
+
 
 jwt:
   secret: ${jwt_secret}
@@ -95,7 +103,6 @@ play-queue:
   poll-interval: 30
   # 提前切换时间（秒，在播放结束前多少秒开始切换）
   switch-ahead-time: 10
-
 
 logging:
   level:
