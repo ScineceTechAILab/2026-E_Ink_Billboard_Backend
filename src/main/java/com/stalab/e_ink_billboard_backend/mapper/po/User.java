@@ -19,9 +19,14 @@ import java.time.LocalDateTime;
 public class User {
     @TableId(type = IdType.AUTO)
     private Long id;
-    private String openid;
+    private String wx_openid;
     private String nickname;
     private String avatar;
     private String role;
+    private String loginSource;
+    private String feishuOpenId;
+    private String feishuUnionId;
+    private String feishuEmployeeNo;
+    private String feishuMobile;
     private LocalDateTime createTime;
 }
