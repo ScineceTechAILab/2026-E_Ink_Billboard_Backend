@@ -7,7 +7,7 @@ import com.stalab.e_ink_billboard_backend.model.dto.PushImageDTO;
 import com.stalab.e_ink_billboard_backend.model.dto.PushVideoDTO;
 import com.stalab.e_ink_billboard_backend.model.vo.ContentPushVO;
 import com.stalab.e_ink_billboard_backend.model.vo.PageResult;
-import com.stalab.e_ink_billboard_backend.service.PushService;
+import com.stalab.e_ink_billboard_backend.service.push.PushService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
@@ -47,7 +47,7 @@ public class PushController {
 
         // 3. 执行推送
         try {
-            pushService.pushImage(dto.getDeviceId(), dto.getImageId(), userId, userRole);
+            pushService.pushImage(dto.getDeviceId(), dto.getImageId(), userId, userRole, dto.getVerificationCode());
             return Response.<Void>builder()
                     .code(200)
                     .info("推送成功")
@@ -81,7 +81,7 @@ public class PushController {
 
         // 3. 执行推送
         try {
-            pushService.pushVideo(dto.getDeviceId(), dto.getVideoId(), userId, userRole);
+            pushService.pushVideo(dto.getDeviceId(), dto.getVideoId(), userId, userRole, dto.getVerificationCode());
             return Response.<Void>builder()
                     .code(200)
                     .info("推送成功")
@@ -115,6 +115,9 @@ public class PushController {
 
         // 3. 执行批量推送
         try {
+            // 批量推送暂不支持验证码，因为逻辑比较复杂（一次消耗一个还是？）
+            // 假设批量推送只有管理员或特定用户能用，或者暂时不加验证码限制（或默认不传）
+            // 如果需要，可以在DTO里加verificationCode并传下去
             pushService.pushBatch(dto.getDeviceIds(), dto.getContentId(), dto.getContentType(), userId, userRole);
             return Response.<Void>builder()
                     .code(200)

@@ -129,12 +129,19 @@
             <scope>runtime</scope>
         </dependency>
         <!-- jwt  end-->
-<!--        视频处理-->
+        <!--        视频处理-->
         <dependency>
             <groupId>org.bytedeco</groupId>
             <artifactId>javacv-platform</artifactId>
             <version>1.5.10</version>
         </dependency>
+
+        <dependency>
+            <groupId>com.github.binarywang</groupId>
+            <artifactId>wx-java-mp-spring-boot-starter</artifactId>
+            <version>4.6.0</version>
+        </dependency>
+
     </dependencies>
 
     <build>
@@ -150,9 +157,9 @@
                 <version>2.43.0</version>
                 <configuration>
                     <java>
-                        <removeUnusedImports />
-                        <trimTrailingWhitespace />
-                        <endWithNewline />
+                        <removeUnusedImports/>
+                        <trimTrailingWhitespace/>
+                        <endWithNewline/>
                     </java>
                 </configuration>
                 <executions>

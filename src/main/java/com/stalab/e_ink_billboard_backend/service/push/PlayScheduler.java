@@ -1,4 +1,4 @@
-package com.stalab.e_ink_billboard_backend.service;
+package com.stalab.e_ink_billboard_backend.service.push;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.stalab.e_ink_billboard_backend.common.enums.ContentType;
@@ -9,7 +9,10 @@ import com.stalab.e_ink_billboard_backend.mapper.UserMapper;
 import com.stalab.e_ink_billboard_backend.mapper.po.Device;
 import com.stalab.e_ink_billboard_backend.mapper.po.User;
 import com.stalab.e_ink_billboard_backend.model.dto.MqttCommandMessage;
-import com.stalab.e_ink_billboard_backend.service.PlayQueueService.QueueItem;
+import com.stalab.e_ink_billboard_backend.service.DeviceService;
+import com.stalab.e_ink_billboard_backend.service.mqtt.MqttService;
+import com.stalab.e_ink_billboard_backend.service.push.PlayQueueService.QueueItem;
+import com.stalab.e_ink_billboard_backend.service.storage.MinioService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;

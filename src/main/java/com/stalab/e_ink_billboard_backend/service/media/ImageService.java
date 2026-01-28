@@ -1,4 +1,4 @@
-package com.stalab.e_ink_billboard_backend.service;
+package com.stalab.e_ink_billboard_backend.service.media;
 
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.crypto.SecureUtil;
@@ -15,6 +15,8 @@ import com.stalab.e_ink_billboard_backend.mapper.po.User;
 import com.stalab.e_ink_billboard_backend.model.vo.ImageUploadVO;
 import com.stalab.e_ink_billboard_backend.model.vo.ImageVO;
 import com.stalab.e_ink_billboard_backend.model.vo.PageResult;
+import com.stalab.e_ink_billboard_backend.service.storage.MinioService;
+import com.stalab.e_ink_billboard_backend.service.wx.WeChatContentSecurityService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,18 +35,35 @@ public class ImageService {
     private final UserMapper userMapper;
     private final MinioService minioService;
     private final ImageUtils imageUtils;
+    private final WeChatContentSecurityService weChatContentSecurityService;
 
-    public ImageService(ImageMapper imageMapper, UserMapper userMapper, MinioService minioService, ImageUtils imageUtils) {
+    public ImageService(ImageMapper imageMapper, UserMapper userMapper, MinioService minioService, ImageUtils imageUtils, WeChatContentSecurityService weChatContentSecurityService) {
         this.imageMapper = imageMapper;
         this.userMapper = userMapper;
         this.minioService = minioService;
         this.imageUtils = imageUtils;
+        this.weChatContentSecurityService = weChatContentSecurityService;
     }
 
     @Transactional(rollbackFor = Exception.class)
     public ImageUploadVO uploadAndProcess(MultipartFile file, Long userId) {
         // 0. 检查用户权限
         checkUserQuota(userId);
+
+        // 获取用户信息
+        User user = userMapper.selectById(userId);
+        boolean isAdmin = "ADMIN".equals(user.getRole());
+
+        // ★★★ 核心审核逻辑：如果是游客，必须先通过微信内容审核 ★★★
+        if (!isAdmin) {
+            log.info("游客上传图片，开始进行内容审核... UserId: {}", userId);
+            boolean safe = weChatContentSecurityService.checkImage(file);
+            if (!safe) {
+                log.warn("图片审核不通过，拒绝上传 UserId: {}", userId);
+                throw new BusinessException("图片包含违规内容，上传失败");
+            }
+            log.info("图片内容审核通过");
+        }
 
         try {
             // 1. 计算 MD5 实现秒传
@@ -55,7 +74,12 @@ public class ImageService {
 
             if (existImage != null) {
                 log.info("图片秒传触发: {}", md5);
-                Image savedImage = saveImageRecord(userId, file, existImage.getOriginalUrl(), existImage.getProcessedUrl(), md5);
+                // 秒传也视为审核通过（因为上面已经检查过或者是管理员，或者引用了已存在的图）
+                // 这里的逻辑是：如果MD5相同，我们复用旧图的URL。
+                // 如果旧图是REJECTED的怎么办？
+                // 如果旧图是REJECTED，但这次用户传的文件通过了审核（或者这次是管理员），
+                // 那么新记录应该是APPROVED。
+                Image savedImage = saveImageRecord(userId, file, existImage.getOriginalUrl(), existImage.getProcessedUrl(), md5, AuditStatus.APPROVED);
                 return ImageUploadVO.builder()
                         .id(savedImage.getId())
                         .url(existImage.getOriginalUrl())
@@ -73,8 +97,8 @@ public class ImageService {
                     "dithered_" + System.currentTimeMillis() + ".png",
                     "image/png");
 
-            // 5. 保存数据库
-            Image savedImage = saveImageRecord(userId, file, originalUrl, processedUrl, md5);
+            // 5. 保存数据库 (因为已经通过审核，直接设置为 APPROVED)
+            Image savedImage = saveImageRecord(userId, file, originalUrl, processedUrl, md5, AuditStatus.APPROVED);
 
             return ImageUploadVO.builder()
                     .id(savedImage.getId())
@@ -91,7 +115,7 @@ public class ImageService {
      * 保存图片记录
      * @return 保存后的Image对象（包含ID）
      */
-    private Image saveImageRecord(Long userId, MultipartFile file, String originalUrl, String processedUrl, String md5) {
+    private Image saveImageRecord(Long userId, MultipartFile file, String originalUrl, String processedUrl, String md5, AuditStatus status) {
         Image image = new Image();
         image.setUserId(userId);
         image.setFileName(file.getOriginalFilename());
@@ -99,14 +123,7 @@ public class ImageService {
         image.setOriginalUrl(originalUrl);
         image.setProcessedUrl(processedUrl); // 这里的图给ESP32用
         image.setMd5(md5);
-
-        // 鉴权逻辑：如果是管理员直接通过，游客则待审核
-        User user = userMapper.selectById(userId);
-        if ("ADMIN".equals(user.getRole())) {
-            image.setAuditStatus(AuditStatus.APPROVED);
-        } else {
-            image.setAuditStatus(AuditStatus.PENDING);
-        }
+        image.setAuditStatus(status); // 直接使用传入的状态
 
         imageMapper.insert(image);
         return image; // 返回保存后的对象，包含自动生成的ID

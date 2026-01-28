@@ -48,9 +48,18 @@ spring:
       # 连接超时时间（毫秒）
       connect-timeout: 5000ms
 
+# wx小程序开发
 wechat:
   appid: ${wechat_appid}
   secret: ${wechat_secret}
+
+# wx公众号开发
+wx:
+  mp:
+    appId: ${wx_mp_appid}  # 公众号的AppID
+    secret: ${wx_mp_secret}    # 公众号的Secret
+    token: ${wx_mp_token}
+    aes-key: ${wx_mp_aes_key}
 
 feishu:
   app-id: ${feishu_app_id}

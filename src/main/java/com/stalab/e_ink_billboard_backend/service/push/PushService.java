@@ -1,4 +1,4 @@
-package com.stalab.e_ink_billboard_backend.service;
+package com.stalab.e_ink_billboard_backend.service.push;
 
 import cn.hutool.core.lang.UUID;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -17,6 +17,10 @@ import com.stalab.e_ink_billboard_backend.mapper.po.User;
 import com.stalab.e_ink_billboard_backend.mapper.po.Video;
 import com.stalab.e_ink_billboard_backend.model.vo.ContentPushVO;
 import com.stalab.e_ink_billboard_backend.model.vo.PageResult;
+import com.stalab.e_ink_billboard_backend.service.DeviceService;
+import com.stalab.e_ink_billboard_backend.service.mqtt.MqttService;
+import com.stalab.e_ink_billboard_backend.service.storage.MinioService;
+import com.stalab.e_ink_billboard_backend.service.wx.VerificationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,11 +45,12 @@ public class PushService {
     private final MinioService minioService;
     private final PlayQueueService playQueueService;
     private final DeviceService deviceService;
+    private final VerificationService verificationService;
 
     public PushService(DeviceMapper deviceMapper, ImageMapper imageMapper, VideoMapper videoMapper,
                       ContentPushMapper contentPushMapper, UserMapper userMapper,
                       MqttService mqttService, MinioService minioService, PlayQueueService playQueueService,
-                      DeviceService deviceService) {
+                      DeviceService deviceService, VerificationService verificationService) {
         this.deviceMapper = deviceMapper;
         this.imageMapper = imageMapper;
         this.videoMapper = videoMapper;
@@ -55,6 +60,7 @@ public class PushService {
         this.minioService = minioService;
         this.playQueueService = playQueueService;
         this.deviceService = deviceService;
+        this.verificationService = verificationService;
     }
 
     /**
@@ -64,9 +70,10 @@ public class PushService {
      * @param imageId 图片ID
      * @param userId 用户ID
      * @param userRole 用户角色
+     * @param verificationCode 验证码（可选）
      */
     @Transactional(rollbackFor = Exception.class)
-    public void pushImage(Long deviceId, Long imageId, Long userId, String userRole) {
+    public void pushImage(Long deviceId, Long imageId, Long userId, String userRole, String verificationCode) {
         // 1. 验证设备存在
         Device device = deviceMapper.selectById(deviceId);
         if (device == null) {
@@ -84,7 +91,7 @@ public class PushService {
             throw new BusinessException("图片不存在");
         }
 
-        // 4. 权限检查：游客只能推送自己的内容，管理员可以推送所有已审核通过的内容
+        // 4. 权限检查
         boolean isAdmin = "ADMIN".equals(userRole);
         if (!isAdmin) {
             if (!image.getUserId().equals(userId)) {
@@ -100,6 +107,10 @@ public class PushService {
                 throw new BusinessException(String.format("今日播放次数已达上限（%d/%d），请明天再试",
                         todayCount, playQueueService.getVisitorDailyLimit()));
             }
+
+            // ★★★ 6. 检查免费配额或验证码 ★★★
+            checkQuotaOrVerification(userId, verificationCode);
+
         } else {
             // 管理员只能推送已审核通过的内容
             if (image.getAuditStatus() != AuditStatus.APPROVED) {
@@ -107,7 +118,7 @@ public class PushService {
             }
         }
 
-        // 6. 保存推送记录（存储永久URL，发送时再生成Presigned URL）
+        // 7. 保存推送记录（存储永久URL，发送时再生成Presigned URL）
         String messageId = UUID.fastUUID().toString(true);
         ContentPush pushRecord = new ContentPush();
         pushRecord.setDeviceId(deviceId);
@@ -145,9 +156,10 @@ public class PushService {
      * @param videoId 视频ID
      * @param userId 用户ID
      * @param userRole 用户角色
+     * @param verificationCode 验证码（可选）
      */
     @Transactional(rollbackFor = Exception.class)
-    public void pushVideo(Long deviceId, Long videoId, Long userId, String userRole) {
+    public void pushVideo(Long deviceId, Long videoId, Long userId, String userRole, String verificationCode) {
         // 1. 验证设备存在
         Device device = deviceMapper.selectById(deviceId);
         if (device == null) {
@@ -170,7 +182,7 @@ public class PushService {
             throw new BusinessException("视频处理未完成，无法推送");
         }
 
-        // 5. 权限检查：游客只能推送自己的内容，管理员可以推送所有已审核通过的内容
+        // 5. 权限检查
         boolean isAdmin = "ADMIN".equals(userRole);
         if (!isAdmin) {
             if (!video.getUserId().equals(userId)) {
@@ -186,6 +198,10 @@ public class PushService {
                 throw new BusinessException(String.format("今日播放次数已达上限（%d/%d），请明天再试",
                         todayCount, playQueueService.getVisitorDailyLimit()));
             }
+
+            // ★★★ 7. 检查免费配额或验证码 ★★★
+            checkQuotaOrVerification(userId, verificationCode);
+
         } else {
             // 管理员只能推送已审核通过的内容
             if (!"APPROVED".equals(video.getAuditStatus())) {
@@ -193,7 +209,7 @@ public class PushService {
             }
         }
 
-        // 7. 保存推送记录（存储永久URL，发送时再生成Presigned URL）
+        // 8. 保存推送记录（存储永久URL，发送时再生成Presigned URL）
         String messageId = UUID.fastUUID().toString(true);
         ContentPush pushRecord = new ContentPush();
         pushRecord.setDeviceId(deviceId);
@@ -225,6 +241,40 @@ public class PushService {
     }
 
     /**
+     * 检查用户配额或验证码
+     * 逻辑：
+     * 1. 检查是否还有免费次数
+     * 2. 如果有，扣减次数并放行
+     * 3. 如果没有，检查验证码
+     */
+    private void checkQuotaOrVerification(Long userId, String verificationCode) {
+        User user = userMapper.selectById(userId);
+        if (user == null) return;
+
+        // 默认如果没有字段值，视为有1次机会（兼容旧数据）
+        int remaining = user.getRemainingFreePushes() == null ? 1 : user.getRemainingFreePushes();
+
+        if (remaining > 0) {
+            // 消耗一次免费机会
+            user.setRemainingFreePushes(remaining - 1);
+            userMapper.updateById(user);
+            log.info("用户消耗一次免费推送机会: userId={}", userId);
+        } else {
+            // 免费机会已用完，需要验证码
+            if (verificationCode == null || verificationCode.isEmpty()) {
+                throw new BusinessException("免费推送次数已用完，请关注微信公众号发送“验证码”获取权限");
+            }
+
+            // 验证验证码
+            boolean isValid = verificationService.validateAndConsumeCode(verificationCode);
+            if (!isValid) {
+                throw new BusinessException("验证码无效或已过期，请重新获取");
+            }
+            log.info("用户使用验证码推送成功: userId={}, code={}", userId, verificationCode);
+        }
+    }
+
+    /**
      * 批量推送到多个设备
      *
      * @param deviceIds 设备ID列表
@@ -235,12 +285,22 @@ public class PushService {
      */
     @Transactional(rollbackFor = Exception.class)
     public void pushBatch(List<Long> deviceIds, Long contentId, ContentType contentType, Long userId, String userRole) {
+        // 批量推送目前简化处理，不进行验证码校验（假设是管理员功能）
         for (Long deviceId : deviceIds) {
             try {
                 if (contentType == ContentType.IMAGE) {
-                    pushImage(deviceId, contentId, userId, userRole);
+                    // 内部调用，为了避免重复校验验证码（而且这里没传验证码），如果是游客批量推送，可能需要额外逻辑
+                    // 这里直接调用pushImage，但传入null验证码。如果游客没次数会失败。
+                    // 建议：批量推送应仅限管理员
+                    if (!"ADMIN".equals(userRole)) {
+                        throw new BusinessException("只有管理员可以使用批量推送");
+                    }
+                    pushImage(deviceId, contentId, userId, userRole, null);
                 } else if (contentType == ContentType.VIDEO) {
-                    pushVideo(deviceId, contentId, userId, userRole);
+                    if (!"ADMIN".equals(userRole)) {
+                        throw new BusinessException("只有管理员可以使用批量推送");
+                    }
+                    pushVideo(deviceId, contentId, userId, userRole, null);
                 } else {
                     throw new BusinessException("不支持的内容类型: " + contentType);
                 }

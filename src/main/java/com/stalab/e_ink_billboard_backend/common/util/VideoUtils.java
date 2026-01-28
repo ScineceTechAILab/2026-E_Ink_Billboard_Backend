@@ -1,13 +1,17 @@
 package com.stalab.e_ink_billboard_backend.common.util;
 
+import com.stalab.e_ink_billboard_backend.model.dto.VideoProcessResult;
 import org.bytedeco.javacv.FFmpegFrameGrabber;
 import org.bytedeco.javacv.Java2DFrameConverter;
 import org.springframework.stereotype.Component;
 
+import java.awt.Graphics;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
 
 @Component
 public class VideoUtils {
@@ -24,9 +28,10 @@ public class VideoUtils {
 
     /**
      * 处理视频：抽帧 -> 抖动 -> 打包成 BIN
-     * @return BIN 文件的输入流
+     * 同时收集采样帧用于审核
+     * @return VideoProcessResult (BIN流 + 采样帧)
      */
-    public ByteArrayInputStream processVideo(InputStream inputStream) throws Exception {
+    public VideoProcessResult processVideo(InputStream inputStream) throws Exception {
         FFmpegFrameGrabber grabber = new FFmpegFrameGrabber(inputStream);
         grabber.start();
 
@@ -39,7 +44,10 @@ public class VideoUtils {
         ByteArrayOutputStream binOutputStream = new ByteArrayOutputStream();
 
         int frameIndex = 0;
+        int processedCount = 0;
         org.bytedeco.javacv.Frame frame;
+
+        List<BufferedImage> sampleFrames = new ArrayList<>();
 
         while ((frame = grabber.grabImage()) != null) {
             // 抽帧逻辑
@@ -47,19 +55,39 @@ public class VideoUtils {
                 // 1. 转成 Java 图片对象
                 BufferedImage srcImage = converter.getBufferedImage(frame);
                 if (srcImage != null) {
+                    // 收集采样帧 (每隔10个处理帧收集一次，即每2秒收集一次，最多5张)
+                    // 注意：必须深拷贝，因为converter返回的对象复用buffer
+                    if (processedCount % 10 == 0 && sampleFrames.size() < 5) {
+                        sampleFrames.add(copyImage(srcImage));
+                    }
+
                     // 2. 核心算法：缩放 + 抖动 (复用 ImageUtils)
                     BufferedImage dithered = imageUtils.toDitheredImage(srcImage);
 
                     // 3. 提取纯像素数据 (1-bit 打包)
                     byte[] frameBytes = convertTo1BitRawData(dithered);
                     binOutputStream.write(frameBytes);
+
+                    processedCount++;
                 }
             }
             frameIndex++;
         }
 
         grabber.stop();
-        return new ByteArrayInputStream(binOutputStream.toByteArray());
+
+        return VideoProcessResult.builder()
+                .binStream(new ByteArrayInputStream(binOutputStream.toByteArray()))
+                .sampleFrames(sampleFrames)
+                .build();
+    }
+
+    private BufferedImage copyImage(BufferedImage source) {
+        BufferedImage b = new BufferedImage(source.getWidth(), source.getHeight(), source.getType());
+        Graphics g = b.getGraphics();
+        g.drawImage(source, 0, 0, null);
+        g.dispose();
+        return b;
     }
 
     /**

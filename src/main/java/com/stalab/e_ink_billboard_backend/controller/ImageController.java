@@ -6,7 +6,7 @@ import com.stalab.e_ink_billboard_backend.common.util.JwtUtils;
 import com.stalab.e_ink_billboard_backend.model.vo.ImageUploadVO;
 import com.stalab.e_ink_billboard_backend.model.vo.ImageVO;
 import com.stalab.e_ink_billboard_backend.model.vo.PageResult;
-import com.stalab.e_ink_billboard_backend.service.ImageService;
+import com.stalab.e_ink_billboard_backend.service.media.ImageService;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 

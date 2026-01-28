@@ -1,4 +1,4 @@
-package com.stalab.e_ink_billboard_backend.service;
+package com.stalab.e_ink_billboard_backend.service.mqtt;
 
 import cn.hutool.json.JSONUtil;
 import com.stalab.e_ink_billboard_backend.common.exception.BusinessException;

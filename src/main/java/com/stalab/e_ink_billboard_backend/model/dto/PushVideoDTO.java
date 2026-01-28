@@ -25,4 +25,9 @@ public class PushVideoDTO {
      */
     @NotNull(message = "视频ID不能为空")
     private Long videoId;
+
+    /**
+     * 验证码（非管理员首次后推送需要）
+     */
+    private String verificationCode;
 }

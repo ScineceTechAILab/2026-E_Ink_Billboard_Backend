@@ -1,8 +1,9 @@
-package com.stalab.e_ink_billboard_backend.service;
+package com.stalab.e_ink_billboard_backend.service.listener;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stalab.e_ink_billboard_backend.model.dto.MqttHeartbeatMessage;
 import com.stalab.e_ink_billboard_backend.model.dto.MqttStatusMessage;
+import com.stalab.e_ink_billboard_backend.service.push.PushService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.integration.annotation.ServiceActivator;
