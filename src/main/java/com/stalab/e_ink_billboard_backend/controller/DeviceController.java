@@ -1,6 +1,7 @@
 package com.stalab.e_ink_billboard_backend.controller;
 
 import com.stalab.e_ink_billboard_backend.common.Response;
+import com.stalab.e_ink_billboard_backend.common.enums.UserRole;
 import com.stalab.e_ink_billboard_backend.common.util.JwtUtils;
 import com.stalab.e_ink_billboard_backend.mapper.po.Device;
 import com.stalab.e_ink_billboard_backend.model.dto.DeleteQueueItemsDTO;
@@ -138,7 +139,7 @@ public class DeviceController {
 
         // 2. 权限检查：仅管理员可添加设备
         String userRole = jwtUtils.getRole(token);
-        if (!"ADMIN".equals(userRole)) {
+        if (!UserRole.ADMIN.getCode().equals(userRole)) {
             return Response.<DeviceVO>builder()
                     .code(403)
                     .info("无权执行此操作，需要管理员权限")
@@ -188,7 +189,7 @@ public class DeviceController {
 
         // 2. 权限检查：仅管理员可更新设备
         String userRole = jwtUtils.getRole(token);
-        if (!"ADMIN".equals(userRole)) {
+        if (!UserRole.ADMIN.getCode().equals(userRole)) {
             return Response.<Void>builder()
                     .code(403)
                     .info("无权执行此操作，需要管理员权限")
@@ -236,7 +237,7 @@ public class DeviceController {
 
         // 2. 权限检查：仅管理员可删除设备
         String userRole = jwtUtils.getRole(token);
-        if (!"ADMIN".equals(userRole)) {
+        if (!UserRole.ADMIN.getCode().equals(userRole)) {
             return Response.<Void>builder()
                     .code(403)
                     .info("无权执行此操作，需要管理员权限")

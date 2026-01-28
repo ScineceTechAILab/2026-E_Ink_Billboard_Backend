@@ -3,6 +3,7 @@ package com.stalab.e_ink_billboard_backend.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.stalab.e_ink_billboard_backend.common.enums.ContentType;
 import com.stalab.e_ink_billboard_backend.common.enums.DeviceStatus;
+import com.stalab.e_ink_billboard_backend.common.enums.UserRole;
 import com.stalab.e_ink_billboard_backend.common.exception.BusinessException;
 import com.stalab.e_ink_billboard_backend.mapper.DeviceMapper;
 import com.stalab.e_ink_billboard_backend.mapper.ImageMapper;
@@ -141,7 +142,7 @@ public class DeviceService {
         LambdaQueryWrapper<Device> queryWrapper = new LambdaQueryWrapper<>();
 
         // 游客只能看到在线设备
-        if (!"ADMIN".equals(role)) {
+        if (!UserRole.ADMIN.getCode().equals(role)) {
             queryWrapper.eq(Device::getStatus, DeviceStatus.ONLINE);
         }
 

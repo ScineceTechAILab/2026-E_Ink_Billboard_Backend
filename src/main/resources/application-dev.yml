@@ -48,6 +48,12 @@ spring:
       # 连接超时时间（毫秒）
       connect-timeout: 5000ms
 
+# 上传限制配置
+upload:
+  daily-limit:
+    image: 20  # 游客每日图片上传上限
+    video: 5   # 游客每日视频上传上限
+
 # wx小程序开发
 wechat:
   appid: ${wechat_appid}
@@ -57,7 +63,7 @@ wechat:
 wx:
   mp:
     appId: ${wx_mp_appid}  # 公众号的AppID
-    secret: ${wx_mp_secret}  # 公众号的Secret
+    secret: ${wx_mp_secret}    # 公众号的Secret
     token: ${wx_mp_token}
     aes-key: ${wx_mp_aes_key}
 

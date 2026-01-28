@@ -4,10 +4,7 @@ import cn.hutool.core.lang.UUID;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.stalab.e_ink_billboard_backend.common.enums.AuditStatus;
-import com.stalab.e_ink_billboard_backend.common.enums.ContentType;
-import com.stalab.e_ink_billboard_backend.common.enums.DeviceStatus;
-import com.stalab.e_ink_billboard_backend.common.enums.PushStatus;
+import com.stalab.e_ink_billboard_backend.common.enums.*;
 import com.stalab.e_ink_billboard_backend.common.exception.BusinessException;
 import com.stalab.e_ink_billboard_backend.mapper.*;
 import com.stalab.e_ink_billboard_backend.mapper.po.ContentPush;
@@ -18,8 +15,6 @@ import com.stalab.e_ink_billboard_backend.mapper.po.Video;
 import com.stalab.e_ink_billboard_backend.model.vo.ContentPushVO;
 import com.stalab.e_ink_billboard_backend.model.vo.PageResult;
 import com.stalab.e_ink_billboard_backend.service.DeviceService;
-import com.stalab.e_ink_billboard_backend.service.mqtt.MqttService;
-import com.stalab.e_ink_billboard_backend.service.storage.MinioService;
 import com.stalab.e_ink_billboard_backend.service.wx.VerificationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -41,23 +36,18 @@ public class PushService {
     private final VideoMapper videoMapper;
     private final ContentPushMapper contentPushMapper;
     private final UserMapper userMapper;
-    private final MqttService mqttService;
-    private final MinioService minioService;
     private final PlayQueueService playQueueService;
     private final DeviceService deviceService;
     private final VerificationService verificationService;
 
     public PushService(DeviceMapper deviceMapper, ImageMapper imageMapper, VideoMapper videoMapper,
-                      ContentPushMapper contentPushMapper, UserMapper userMapper,
-                      MqttService mqttService, MinioService minioService, PlayQueueService playQueueService,
-                      DeviceService deviceService, VerificationService verificationService) {
+                       ContentPushMapper contentPushMapper, UserMapper userMapper,
+                       PlayQueueService playQueueService, DeviceService deviceService, VerificationService verificationService) {
         this.deviceMapper = deviceMapper;
         this.imageMapper = imageMapper;
         this.videoMapper = videoMapper;
         this.contentPushMapper = contentPushMapper;
         this.userMapper = userMapper;
-        this.mqttService = mqttService;
-        this.minioService = minioService;
         this.playQueueService = playQueueService;
         this.deviceService = deviceService;
         this.verificationService = verificationService;
@@ -66,10 +56,10 @@ public class PushService {
     /**
      * 推送图片到设备
      *
-     * @param deviceId 设备ID
-     * @param imageId 图片ID
-     * @param userId 用户ID
-     * @param userRole 用户角色
+     * @param deviceId         设备ID
+     * @param imageId          图片ID
+     * @param userId           用户ID
+     * @param userRole         用户角色
      * @param verificationCode 验证码（可选）
      */
     @Transactional(rollbackFor = Exception.class)
@@ -81,7 +71,7 @@ public class PushService {
         }
 
         // 2. 游客只能推送到在线设备
-        if (!"ADMIN".equals(userRole) && device.getStatus() != DeviceStatus.ONLINE) {
+        if (!UserRole.ADMIN.getCode().equals(userRole) && device.getStatus() != DeviceStatus.ONLINE) {
             throw new BusinessException("设备离线，无法推送");
         }
 
@@ -92,7 +82,7 @@ public class PushService {
         }
 
         // 4. 权限检查
-        boolean isAdmin = "ADMIN".equals(userRole);
+        boolean isAdmin = UserRole.ADMIN.getCode().equals(userRole);
         if (!isAdmin) {
             if (!image.getUserId().equals(userId)) {
                 throw new BusinessException("无权推送此图片");
@@ -152,10 +142,10 @@ public class PushService {
     /**
      * 推送视频到设备
      *
-     * @param deviceId 设备ID
-     * @param videoId 视频ID
-     * @param userId 用户ID
-     * @param userRole 用户角色
+     * @param deviceId         设备ID
+     * @param videoId          视频ID
+     * @param userId           用户ID
+     * @param userRole         用户角色
      * @param verificationCode 验证码（可选）
      */
     @Transactional(rollbackFor = Exception.class)
@@ -167,7 +157,7 @@ public class PushService {
         }
 
         // 2. 游客只能推送到在线设备
-        if (!"ADMIN".equals(userRole) && device.getStatus() != DeviceStatus.ONLINE) {
+        if (!UserRole.ADMIN.getCode().equals(userRole) && device.getStatus() != DeviceStatus.ONLINE) {
             throw new BusinessException("设备离线，无法推送");
         }
 
@@ -178,17 +168,17 @@ public class PushService {
         }
 
         // 4. 检查视频处理状态
-        if (!"SUCCESS".equals(video.getProcessingStatus())) {
+        if (!ProcessingStatus.SUCCESS.name().equals(video.getProcessingStatus())) {
             throw new BusinessException("视频处理未完成，无法推送");
         }
 
         // 5. 权限检查
-        boolean isAdmin = "ADMIN".equals(userRole);
+        boolean isAdmin = UserRole.ADMIN.getCode().equals(userRole);
         if (!isAdmin) {
             if (!video.getUserId().equals(userId)) {
                 throw new BusinessException("无权推送此视频");
             }
-            if (!"APPROVED".equals(video.getAuditStatus())) {
+            if (!AuditStatus.APPROVED.name().equals(video.getAuditStatus())) {
                 throw new BusinessException("视频未审核通过，无法推送");
             }
 
@@ -204,7 +194,7 @@ public class PushService {
 
         } else {
             // 管理员只能推送已审核通过的内容
-            if (!"APPROVED".equals(video.getAuditStatus())) {
+            if (!AuditStatus.APPROVED.name().equals(video.getAuditStatus())) {
                 throw new BusinessException("视频未审核通过，无法推送");
             }
         }
@@ -283,11 +273,11 @@ public class PushService {
     /**
      * 批量推送到多个设备
      *
-     * @param deviceIds 设备ID列表
-     * @param contentId 内容ID
+     * @param deviceIds   设备ID列表
+     * @param contentId   内容ID
      * @param contentType 内容类型
-     * @param userId 用户ID
-     * @param userRole 用户角色
+     * @param userId      用户ID
+     * @param userRole    用户角色
      */
     @Transactional(rollbackFor = Exception.class)
     public void pushBatch(List<Long> deviceIds, Long contentId, ContentType contentType, Long userId, String userRole) {
@@ -298,12 +288,12 @@ public class PushService {
                     // 内部调用，为了避免重复校验验证码（而且这里没传验证码），如果是游客批量推送，可能需要额外逻辑
                     // 这里直接调用pushImage，但传入null验证码。如果游客没次数会失败。
                     // 建议：批量推送应仅限管理员
-                    if (!"ADMIN".equals(userRole)) {
+                    if (!UserRole.ADMIN.getCode().equals(userRole)) {
                         throw new BusinessException("只有管理员可以使用批量推送");
                     }
                     pushImage(deviceId, contentId, userId, userRole, null);
                 } else if (contentType == ContentType.VIDEO) {
-                    if (!"ADMIN".equals(userRole)) {
+                    if (!UserRole.ADMIN.getCode().equals(userRole)) {
                         throw new BusinessException("只有管理员可以使用批量推送");
                     }
                     pushVideo(deviceId, contentId, userId, userRole, null);
@@ -320,16 +310,16 @@ public class PushService {
     /**
      * 查询推送历史（分页）
      *
-     * @param current 当前页码
-     * @param size 每页大小
-     * @param deviceId 设备ID（可选）
-     * @param userId 用户ID（可选，管理员可用）
+     * @param current       当前页码
+     * @param size          每页大小
+     * @param deviceId      设备ID（可选）
+     * @param userId        用户ID（可选，管理员可用）
      * @param currentUserId 当前用户ID
-     * @param userRole 当前用户角色
+     * @param userRole      当前用户角色
      * @return 分页结果
      */
     public PageResult<ContentPushVO> getPushHistory(Long current, Long size, Long deviceId, Long userId,
-                                                     Long currentUserId, String userRole) {
+                                                    Long currentUserId, String userRole) {
         // 默认值
         if (current == null || current < 1) {
             current = 1L;
@@ -348,7 +338,7 @@ public class PushService {
         }
 
         // 权限控制：游客只能查看自己的推送记录
-        if (!"ADMIN".equals(userRole)) {
+        if (!UserRole.ADMIN.getCode().equals(userRole)) {
             queryWrapper.eq(ContentPush::getUserId, currentUserId);
         } else if (userId != null) {
             // 管理员可以查看指定用户的推送记录
@@ -380,7 +370,7 @@ public class PushService {
     /**
      * 处理ESP32状态上报消息
      *
-     * @param deviceCode 设备编码（从topic中提取）
+     * @param deviceCode    设备编码（从topic中提取）
      * @param statusMessage 状态消息
      */
     @Transactional(rollbackFor = Exception.class)
@@ -408,9 +398,9 @@ public class PushService {
 
             // 2. 更新推送记录状态
             PushStatus newStatus;
-            if ("SUCCESS".equals(statusMessage.getStatus())) {
+            if (PushStatus.SUCCESS.name().equals(statusMessage.getStatus())) {
                 newStatus = PushStatus.SUCCESS;
-            } else if ("FAILED".equals(statusMessage.getStatus())) {
+            } else if (PushStatus.FAILED.name().equals(statusMessage.getStatus())) {
                 newStatus = PushStatus.FAILED;
             } else {
                 // DOWNLOADING, DISPLAYING 等中间状态，保持SENT状态
@@ -456,7 +446,7 @@ public class PushService {
     /**
      * 处理ESP32心跳消息
      *
-     * @param deviceCode 设备编码（从topic中提取）
+     * @param deviceCode       设备编码（从topic中提取）
      * @param heartbeatMessage 心跳消息
      */
     @Transactional(rollbackFor = Exception.class)

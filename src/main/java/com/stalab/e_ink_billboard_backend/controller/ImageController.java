@@ -2,6 +2,7 @@ package com.stalab.e_ink_billboard_backend.controller;
 
 import com.stalab.e_ink_billboard_backend.common.Response;
 import com.stalab.e_ink_billboard_backend.common.enums.AuditStatus;
+import com.stalab.e_ink_billboard_backend.common.enums.UserRole;
 import com.stalab.e_ink_billboard_backend.common.util.JwtUtils;
 import com.stalab.e_ink_billboard_backend.model.vo.ImageUploadVO;
 import com.stalab.e_ink_billboard_backend.model.vo.ImageVO;
@@ -120,7 +121,7 @@ public class ImageController {
         String userRole = jwtUtils.getRole(token);
 
         // 3. 权限控制：如果不是管理员，只能查看自己的图片
-        if (!"ADMIN".equals(userRole)) {
+        if (!UserRole.ADMIN.getCode().equals(userRole)) {
             userId = currentUserId;
         }
 

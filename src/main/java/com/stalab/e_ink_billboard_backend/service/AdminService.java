@@ -55,7 +55,7 @@ public class AdminService {
         // Video中auditStatus为"PENDING"的数量
         long pendingVideos = videoMapper.selectCount(
                 new LambdaQueryWrapper<Video>()
-                        .eq(Video::getAuditStatus, "PENDING")
+                        .eq(Video::getAuditStatus, AuditStatus.PENDING.name())
         );
 
         int pendingAudits = (int) (pendingImages + pendingVideos);
@@ -67,10 +67,10 @@ public class AdminService {
                         .eq(Image::getAuditStatus, AuditStatus.APPROVED)
         );
 
-        // Video中auditStatus为"PASSED"的数量
+        // Video中auditStatus为APPROVED的数量
         long approvedVideos = videoMapper.selectCount(
                 new LambdaQueryWrapper<Video>()
-                        .eq(Video::getAuditStatus, "PASSED")
+                        .eq(Video::getAuditStatus, AuditStatus.APPROVED.name())
         );
 
         int approvedContent = (int) (approvedImages + approvedVideos);
