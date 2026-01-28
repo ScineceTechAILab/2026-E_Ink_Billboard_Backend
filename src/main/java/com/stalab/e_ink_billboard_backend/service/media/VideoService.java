@@ -4,6 +4,9 @@ import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.stalab.e_ink_billboard_backend.common.enums.AuditStatus;
+import com.stalab.e_ink_billboard_backend.common.enums.ProcessingStatus;
+import com.stalab.e_ink_billboard_backend.common.enums.UserRole;
 import com.stalab.e_ink_billboard_backend.common.exception.BusinessException;
 import com.stalab.e_ink_billboard_backend.mapper.UserMapper;
 import com.stalab.e_ink_billboard_backend.mapper.VideoMapper;
@@ -12,12 +15,17 @@ import com.stalab.e_ink_billboard_backend.mapper.po.Video;
 import com.stalab.e_ink_billboard_backend.model.vo.PageResult;
 import com.stalab.e_ink_billboard_backend.model.vo.VideoVO;
 import com.stalab.e_ink_billboard_backend.service.storage.MinioService;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDate;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 
@@ -34,6 +42,12 @@ public class VideoService {
 
     private final VideoAsyncService videoAsyncService;
 
+    @Value("${upload.daily-limit.video:5}")
+    private int videoDailyLimit;
+
+    @Resource
+    private RedisTemplate<String, Object> redisTemplate;
+
     public VideoService(VideoMapper videoMapper, UserMapper userMapper, MinioService minioService, VideoAsyncService videoAsyncService) {
         this.videoMapper = videoMapper;
         this.userMapper = userMapper;
@@ -49,6 +63,13 @@ public class VideoService {
         if (file.isEmpty()) throw new BusinessException("文件为空");
         if (file.getSize() > 50 * 1024 * 1024) throw new BusinessException("视频超过50MB");
 
+        // 检查用户权限
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            throw new BusinessException("用户不存在");
+        }
+        checkUserQuota(user);
+
         String originalFileName = file.getOriginalFilename();
 
         try {
@@ -61,13 +82,15 @@ public class VideoService {
             video.setFileName(originalFileName);
             video.setFileSize(file.getSize());
             video.setOriginalUrl(originalUrl);
-            video.setProcessingStatus("PROCESSING"); // <--- 标记为处理中
+            video.setProcessingStatus(ProcessingStatus.PROCESSING.name()); // <--- 标记为处理中
 
             // 审核状态初始化
-            User user = userMapper.selectById(userId);
-            video.setAuditStatus("ADMIN".equals(user.getRole()) ? "PASSED" : "PENDING");
+            video.setAuditStatus(UserRole.ADMIN.getCode().equals(user.getRole()) ? AuditStatus.APPROVED.name() : AuditStatus.PENDING.name());
 
             videoMapper.insert(video);
+
+            // 增加计数
+            incrementUserQuota(user);
 
             // 4. ★★★ 启动异步处理 ★★★
             byte[] videoBytes = file.getBytes();
@@ -97,7 +120,7 @@ public class VideoService {
         }
 
         // 2. 权限检查：只有管理员或上传者可以删除
-        if (!"ADMIN".equals(userRole) && !video.getUserId().equals(userId)) {
+        if (!UserRole.ADMIN.getCode().equals(userRole) && !video.getUserId().equals(userId)) {
             throw new BusinessException("无权删除此视频");
         }
 
@@ -192,5 +215,45 @@ public class VideoService {
                 .failReason(video.getFailReason())
                 .createTime(video.getCreateTime())
                 .build();
+    }
+
+    /**
+     * 检查用户今日上传配额
+     */
+    private void checkUserQuota(User user) {
+        // 管理员不限制
+        if (UserRole.ADMIN.getCode().equals(user.getRole())) {
+            return;
+        }
+
+        String date = LocalDate.now().toString();
+        String key = String.format("upload:daily:video:%d:%s", user.getId(), date);
+
+        Object countObj = redisTemplate.opsForValue().get(key);
+        int count = countObj == null ? 0 : Integer.parseInt(countObj.toString());
+
+        if (count >= videoDailyLimit) {
+            log.warn("用户今日视频上传已达上限: userId={}, count={}, limit={}", user.getId(), count, videoDailyLimit);
+            throw new BusinessException("今日视频上传已达上限(" + videoDailyLimit + "个)，请明天再试");
+        }
+    }
+
+    /**
+     * 增加用户今日上传计数
+     */
+    private void incrementUserQuota(User user) {
+        // 管理员不限制
+        if (UserRole.ADMIN.getCode().equals(user.getRole())) {
+            return;
+        }
+
+        String date = LocalDate.now().toString();
+        String key = String.format("upload:daily:video:%d:%s", user.getId(), date);
+
+        Long count = redisTemplate.opsForValue().increment(key);
+        if (count != null && count == 1) {
+            redisTemplate.expire(key, 1, TimeUnit.DAYS);
+        }
+        log.info("用户今日视频上传计数增加: userId={}, current={}", user.getId(), count);
     }
 }

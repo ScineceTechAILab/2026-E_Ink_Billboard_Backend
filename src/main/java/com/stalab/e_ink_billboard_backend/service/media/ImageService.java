@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.stalab.e_ink_billboard_backend.common.enums.AuditStatus;
+import com.stalab.e_ink_billboard_backend.common.enums.UserRole;
 import com.stalab.e_ink_billboard_backend.common.exception.BusinessException;
 import com.stalab.e_ink_billboard_backend.common.util.ImageUtils;
 import com.stalab.e_ink_billboard_backend.mapper.ImageMapper;
@@ -17,14 +18,19 @@ import com.stalab.e_ink_billboard_backend.model.vo.ImageVO;
 import com.stalab.e_ink_billboard_backend.model.vo.PageResult;
 import com.stalab.e_ink_billboard_backend.service.storage.MinioService;
 import com.stalab.e_ink_billboard_backend.service.wx.WeChatContentSecurityService;
+import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -37,6 +43,12 @@ public class ImageService {
     private final ImageUtils imageUtils;
     private final WeChatContentSecurityService weChatContentSecurityService;
 
+    @Value("${upload.daily-limit.image:20}")
+    private int imageDailyLimit;
+
+    @Resource
+    private RedisTemplate<String, Object> redisTemplate;
+
     public ImageService(ImageMapper imageMapper, UserMapper userMapper, MinioService minioService, ImageUtils imageUtils, WeChatContentSecurityService weChatContentSecurityService) {
         this.imageMapper = imageMapper;
         this.userMapper = userMapper;
@@ -47,12 +59,16 @@ public class ImageService {
 
     @Transactional(rollbackFor = Exception.class)
     public ImageUploadVO uploadAndProcess(MultipartFile file, Long userId) {
-        // 0. 检查用户权限
-        checkUserQuota(userId);
-
         // 获取用户信息
         User user = userMapper.selectById(userId);
-        boolean isAdmin = "ADMIN".equals(user.getRole());
+        if (user == null) {
+            throw new BusinessException("用户不存在");
+        }
+
+        // 0. 检查用户权限
+        checkUserQuota(user);
+
+        boolean isAdmin = UserRole.ADMIN.getCode().equals(user.getRole());
 
         // ★★★ 核心审核逻辑：如果是游客，必须先通过微信内容审核 ★★★
         if (!isAdmin) {
@@ -99,6 +115,9 @@ public class ImageService {
 
             // 5. 保存数据库 (因为已经通过审核，直接设置为 APPROVED)
             Image savedImage = saveImageRecord(userId, file, originalUrl, processedUrl, md5, AuditStatus.APPROVED);
+
+            // 增加用户上传计数
+            incrementUserQuota(user);
 
             return ImageUploadVO.builder()
                     .id(savedImage.getId())
@@ -234,7 +253,45 @@ public class ImageService {
                 .build();
     }
 
-    private void checkUserQuota(Long userId) {
-        //TODO: 实现防白嫖逻辑
+    /**
+     * 检查用户今日上传配额
+     */
+    private void checkUserQuota(User user) {
+        // 管理员不限制
+        if (UserRole.ADMIN.getCode().equals(user.getRole())) {
+            return;
+        }
+
+        String date = LocalDate.now().toString();
+        String key = String.format("upload:daily:image:%d:%s", user.getId(), date);
+
+        Object countObj = redisTemplate.opsForValue().get(key);
+        int count = countObj == null ? 0 : Integer.parseInt(countObj.toString());
+
+        if (count >= imageDailyLimit) {
+            log.warn("用户今日图片上传已达上限: userId={}, count={}, limit={}", user.getId(), count, imageDailyLimit);
+            throw new BusinessException("今日图片上传已达上限(" + imageDailyLimit + "张)，请明天再试");
+        }
+    }
+
+    /**
+     * 增加用户今日上传计数
+     */
+    private void incrementUserQuota(User user) {
+        // 管理员不限制，不计数（或者也可以计数但不限制）
+        if (UserRole.ADMIN.getCode().equals(user.getRole())) {
+            return;
+        }
+
+        String date = LocalDate.now().toString();
+        String key = String.format("upload:daily:image:%d:%s", user.getId(), date);
+
+        Long count = redisTemplate.opsForValue().increment(key);
+        // 如果是第一次计数，设置过期时间（24小时后，或者到明天0点）
+        // 这里简单设置为24小时
+        if (count != null && count == 1) {
+            redisTemplate.expire(key, 1, TimeUnit.DAYS);
+        }
+        log.info("用户今日图片上传计数增加: userId={}, current={}", user.getId(), count);
     }
 }

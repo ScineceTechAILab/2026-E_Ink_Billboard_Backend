@@ -44,6 +44,12 @@ public class PlayScheduler {
     @Autowired
     private ContentPushMapper contentPushMapper;
 
+    @Autowired
+    private DeviceService deviceService;
+
+    @Autowired
+    private UserMapper userMapper;
+
     @Value("${play-queue.switch-ahead-time:10}")
     private long switchAheadTime; // 提前切换时间（秒）
 
@@ -160,9 +166,5 @@ public class PlayScheduler {
         }
     }
 
-    @Autowired
-    private DeviceService deviceService;
 
-    @Autowired
-    private UserMapper userMapper;
 }

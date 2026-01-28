@@ -1,6 +1,7 @@
 package com.stalab.e_ink_billboard_backend.controller;
 
 import com.stalab.e_ink_billboard_backend.common.Response;
+import com.stalab.e_ink_billboard_backend.common.enums.UserRole;
 import com.stalab.e_ink_billboard_backend.common.util.JwtUtils;
 import com.stalab.e_ink_billboard_backend.mapper.VideoMapper;
 import com.stalab.e_ink_billboard_backend.mapper.po.Video;
@@ -141,7 +142,7 @@ public class VideoController {
         String userRole = jwtUtils.getRole(token);
 
         // 3. 权限控制：如果不是管理员，只能查看自己的视频
-        if (!"ADMIN".equals(userRole)) {
+        if (!UserRole.ADMIN.getCode().equals(userRole)) {
             userId = currentUserId;
         }
 
