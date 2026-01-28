@@ -57,7 +57,7 @@ wechat:
 wx:
   mp:
     appId: ${wx_mp_appid}  # 公众号的AppID
-    secret: ${wx_mp_secret}    # 公众号的Secret
+    secret: ${wx_mp_secret}  # 公众号的Secret
     token: ${wx_mp_token}
     aes-key: ${wx_mp_aes_key}
 

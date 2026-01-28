@@ -12,16 +12,16 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class WeChatMpConfig {
 
-    @Value("${wechat.mp.app-id:}")
+    @Value("${wx.mp.appId:}")
     private String appId;
 
-    @Value("${wechat.mp.secret:}")
+    @Value("${wx.mp.secret:}")
     private String secret;
 
-    @Value("${wechat.mp.token:}")
+    @Value("${wx.mp.token:}")
     private String token;
 
-    @Value("${wechat.mp.aes-key:}")
+    @Value("${wx.mp.aes-key:}")
     private String aesKey;
 
     @Bean
