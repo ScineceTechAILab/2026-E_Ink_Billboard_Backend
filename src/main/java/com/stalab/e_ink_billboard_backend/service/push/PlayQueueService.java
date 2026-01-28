@@ -1,4 +1,4 @@
-package com.stalab.e_ink_billboard_backend.service;
+package com.stalab.e_ink_billboard_backend.service.push;
 
 import cn.hutool.json.JSONUtil;
 import com.stalab.e_ink_billboard_backend.common.enums.ContentType;
@@ -15,6 +15,9 @@ import com.stalab.e_ink_billboard_backend.mapper.po.User;
 import com.stalab.e_ink_billboard_backend.mapper.po.Video;
 import com.stalab.e_ink_billboard_backend.model.dto.MqttCommandMessage;
 import com.stalab.e_ink_billboard_backend.model.vo.QueueItemVO;
+import com.stalab.e_ink_billboard_backend.service.DeviceService;
+import com.stalab.e_ink_billboard_backend.service.mqtt.MqttService;
+import com.stalab.e_ink_billboard_backend.service.storage.MinioService;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;

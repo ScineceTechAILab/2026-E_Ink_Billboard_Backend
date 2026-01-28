@@ -6,7 +6,7 @@ import com.stalab.e_ink_billboard_backend.mapper.VideoMapper;
 import com.stalab.e_ink_billboard_backend.mapper.po.Video;
 import com.stalab.e_ink_billboard_backend.model.vo.PageResult;
 import com.stalab.e_ink_billboard_backend.model.vo.VideoVO;
-import com.stalab.e_ink_billboard_backend.service.VideoService;
+import com.stalab.e_ink_billboard_backend.service.media.VideoService;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 

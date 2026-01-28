@@ -29,4 +29,10 @@ public class User {
     private String feishuEmployeeNo;
     private String feishuMobile;
     private LocalDateTime createTime;
+
+    /**
+     * 剩余免费推送次数
+     * 默认为1
+     */
+    private Integer remainingFreePushes;
 }

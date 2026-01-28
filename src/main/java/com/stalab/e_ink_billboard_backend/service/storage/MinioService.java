@@ -1,4 +1,4 @@
-package com.stalab.e_ink_billboard_backend.service;
+package com.stalab.e_ink_billboard_backend.service.storage;
 
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.lang.UUID;
