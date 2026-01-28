@@ -270,7 +270,13 @@ public class PushService {
             if (!isValid) {
                 throw new BusinessException("验证码无效或已过期，请重新获取");
             }
-            log.info("用户使用验证码推送成功: userId={}, code={}", userId, verificationCode);
+
+            // 验证通过，奖励用户5次免费推送机会（扣除本次1次，剩余4次）
+            int rewardCount = 5;
+            user.setRemainingFreePushes(rewardCount - 1);
+            userMapper.updateById(user);
+
+            log.info("用户使用验证码推送成功，获得额外额度: userId={}, code={}, reward={}", userId, verificationCode, rewardCount);
         }
     }
 
