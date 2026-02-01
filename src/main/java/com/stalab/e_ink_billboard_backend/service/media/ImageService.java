@@ -121,7 +121,7 @@ public class ImageService {
 
             return ImageUploadVO.builder()
                     .id(savedImage.getId())
-                    .url(originalUrl)
+                    .url(processedUrl)
                     .build();
 
         } catch (IOException e) {

@@ -8,6 +8,7 @@ import com.stalab.e_ink_billboard_backend.model.vo.ImageUploadVO;
 import com.stalab.e_ink_billboard_backend.model.vo.ImageVO;
 import com.stalab.e_ink_billboard_backend.model.vo.PageResult;
 import com.stalab.e_ink_billboard_backend.service.media.ImageService;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -127,7 +128,7 @@ public class ImageController {
 
         // 4. 转换审核状态枚举
         AuditStatus auditStatus = null;
-        if (auditStatusStr != null) {
+        if (StringUtils.isNotBlank(auditStatusStr)) {
             try {
                 auditStatus = AuditStatus.valueOf(auditStatusStr.toUpperCase());
             } catch (IllegalArgumentException e) {

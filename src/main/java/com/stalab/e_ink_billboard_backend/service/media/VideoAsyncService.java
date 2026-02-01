@@ -95,7 +95,7 @@ public class VideoAsyncService {
 
             log.info("视频处理成功 VideoID: {}", videoId);
 
-        } catch (Exception e) {
+        } catch (Throwable e) {
             log.error("视频异步处理失败 VideoID: {}", videoId, e);
             // 5. 更新失败状态
             updateEntity.setProcessingStatus(ProcessingStatus.FAILED.name());
