@@ -69,16 +69,21 @@ public class ImageService {
         checkUserQuota(user);
 
         boolean isAdmin = UserRole.ADMIN.getCode().equals(user.getRole());
+        AuditStatus initialStatus = AuditStatus.APPROVED;
+        String auditReason = null;
 
         // ★★★ 核心审核逻辑：如果是游客，必须先通过微信内容审核 ★★★
         if (!isAdmin) {
             log.info("游客上传图片，开始进行内容审核... UserId: {}", userId);
             boolean safe = weChatContentSecurityService.checkImage(file);
             if (!safe) {
-                log.warn("图片审核不通过，拒绝上传 UserId: {}", userId);
-                throw new BusinessException("图片包含违规内容，上传失败");
+                log.warn("图片审核不通过，转入人工复审 UserId: {}", userId);
+                initialStatus = AuditStatus.PENDING;
+                auditReason = "WeChat Check Failed";
+            } else {
+                log.info("图片内容审核通过");
+                initialStatus = AuditStatus.APPROVED;
             }
-            log.info("图片内容审核通过");
         }
 
         try {
@@ -91,11 +96,9 @@ public class ImageService {
             if (existImage != null) {
                 log.info("图片秒传触发: {}", md5);
                 // 秒传也视为审核通过（因为上面已经检查过或者是管理员，或者引用了已存在的图）
-                // 这里的逻辑是：如果MD5相同，我们复用旧图的URL。
-                // 如果旧图是REJECTED的怎么办？
-                // 如果旧图是REJECTED，但这次用户传的文件通过了审核（或者这次是管理员），
-                // 那么新记录应该是APPROVED。
-                Image savedImage = saveImageRecord(userId, file, existImage.getOriginalUrl(), existImage.getProcessedUrl(), md5, AuditStatus.APPROVED);
+                // 注意：如果旧图是REJECTED，但这次通过了审核（或者这次是管理员），新记录应该是APPROVED
+                // 但如果这次没通过审核（WeChat Failed），则应该是PENDING
+                Image savedImage = saveImageRecord(userId, file, existImage.getOriginalUrl(), existImage.getProcessedUrl(), md5, initialStatus, auditReason);
                 return ImageUploadVO.builder()
                         .id(savedImage.getId())
                         .url(existImage.getOriginalUrl())
@@ -113,8 +116,8 @@ public class ImageService {
                     "dithered_" + System.currentTimeMillis() + ".png",
                     "image/png");
 
-            // 5. 保存数据库 (因为已经通过审核，直接设置为 APPROVED)
-            Image savedImage = saveImageRecord(userId, file, originalUrl, processedUrl, md5, AuditStatus.APPROVED);
+            // 5. 保存数据库
+            Image savedImage = saveImageRecord(userId, file, originalUrl, processedUrl, md5, initialStatus, auditReason);
 
             // 增加用户上传计数
             incrementUserQuota(user);
@@ -134,7 +137,7 @@ public class ImageService {
      * 保存图片记录
      * @return 保存后的Image对象（包含ID）
      */
-    private Image saveImageRecord(Long userId, MultipartFile file, String originalUrl, String processedUrl, String md5, AuditStatus status) {
+    private Image saveImageRecord(Long userId, MultipartFile file, String originalUrl, String processedUrl, String md5, AuditStatus status, String auditReason) {
         Image image = new Image();
         image.setUserId(userId);
         image.setFileName(file.getOriginalFilename());
@@ -142,7 +145,8 @@ public class ImageService {
         image.setOriginalUrl(originalUrl);
         image.setProcessedUrl(processedUrl); // 这里的图给ESP32用
         image.setMd5(md5);
-        image.setAuditStatus(status); // 直接使用传入的状态
+        image.setAuditStatus(status); // 使用传入的状态
+        image.setAuditReason(auditReason);
 
         imageMapper.insert(image);
         return image; // 返回保存后的对象，包含自动生成的ID
