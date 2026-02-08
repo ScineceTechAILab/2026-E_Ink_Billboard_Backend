@@ -36,6 +36,9 @@ public class DeviceService {
     @Autowired(required = false)
     private VideoMapper videoMapper;
 
+    @Autowired
+    private com.stalab.e_ink_billboard_backend.service.mqtt.MqttService mqttService;
+
     public DeviceService(DeviceMapper deviceMapper) {
         this.deviceMapper = deviceMapper;
     }
@@ -219,7 +222,7 @@ public class DeviceService {
     }
 
     /**
-     * 更新当前显示内容
+     * 更新设备当前内容
      *
      * @param deviceId 设备ID
      * @param contentId 内容ID
@@ -239,6 +242,39 @@ public class DeviceService {
         deviceMapper.updateById(device);
 
         log.info("更新设备当前内容: deviceId={}, contentId={}, contentType={}", deviceId, contentId, contentType);
+    }
+
+    /**
+     * 下发配网指令
+     *
+     * @param deviceId 设备ID
+     * @param ssid WiFi名称
+     * @param password WiFi密码
+     */
+    public void changeNetwork(Long deviceId, String ssid, String password) {
+        Device device = deviceMapper.selectById(deviceId);
+        if (device == null) {
+            throw new BusinessException("设备不存在");
+        }
+
+        if (device.getStatus() != DeviceStatus.ONLINE) {
+            throw new BusinessException("设备离线，无法下发指令");
+        }
+
+        if (device.getMqttTopic() == null || device.getMqttTopic().isEmpty()) {
+            throw new BusinessException("设备未配置MQTT主题");
+        }
+
+        // 构建配网消息
+        java.util.Map<String, Object> payload = new java.util.HashMap<>();
+        payload.put("type", "WIFI_CONFIG");
+        payload.put("ssid", ssid);
+        payload.put("password", password);
+        payload.put("timestamp", System.currentTimeMillis());
+
+        // 发送MQTT消息
+        mqttService.publish(device.getMqttTopic(), payload);
+        log.info("下发配网指令: deviceId={}, ssid={}", deviceId, ssid);
     }
 
     /**

@@ -260,7 +260,47 @@ public class DeviceController {
     }
 
     /**
-     * 获取设备播放队列列表（仅管理员）
+     * 下发配网指令
+     * POST /api/device/{id}/network
+     */
+    @PostMapping("/{id}/network")
+    public Response<Void> changeNetwork(@PathVariable Long id,
+                                        @Valid @RequestBody com.stalab.e_ink_billboard_backend.model.dto.NetworkConfigDTO networkConfig,
+                                        @RequestHeader("Authorization") String token) {
+        // 1. 校验Token
+        if (!jwtUtils.validateToken(token)) {
+            return Response.<Void>builder()
+                    .code(401)
+                    .info("Token 无效")
+                    .build();
+        }
+
+        // 2. 权限检查：仅管理员可配网
+        String userRole = jwtUtils.getRole(token);
+        if (!UserRole.ADMIN.getCode().equals(userRole)) {
+            return Response.<Void>builder()
+                    .code(403)
+                    .info("无权执行此操作，需要管理员权限")
+                    .build();
+        }
+
+        // 3. 下发指令
+        try {
+            deviceService.changeNetwork(id, networkConfig.getSsid(), networkConfig.getPassword());
+            return Response.<Void>builder()
+                    .code(200)
+                    .info("指令下发成功")
+                    .build();
+        } catch (Exception e) {
+            return Response.<Void>builder()
+                    .code(400)
+                    .info(e.getMessage())
+                    .build();
+        }
+    }
+
+    /**
+     * 获取设备播放队列列表
      * GET /api/device/{id}/queue
      */
     @GetMapping("/{id}/queue")
@@ -274,16 +314,7 @@ public class DeviceController {
                     .build();
         }
 
-        // 2. 权限检查：仅管理员可查看队列
-        String userRole = jwtUtils.getRole(token);
-        if (!"ADMIN".equals(userRole)) {
-            return Response.<List<QueueItemVO>>builder()
-                    .code(403)
-                    .info("无权执行此操作，需要管理员权限")
-                    .build();
-        }
-
-        // 3. 查询队列列表
+        // 2. 查询队列列表
         try {
             List<QueueItemVO> queueItems = playQueueService.getQueueList(id);
             return Response.<List<QueueItemVO>>builder()
@@ -317,7 +348,7 @@ public class DeviceController {
 
         // 2. 权限检查：仅管理员可删除队列项
         String userRole = jwtUtils.getRole(token);
-        if (!"ADMIN".equals(userRole)) {
+        if (!UserRole.ADMIN.getCode().equals(userRole)) {
             return Response.<Integer>builder()
                     .code(403)
                     .info("无权执行此操作，需要管理员权限")

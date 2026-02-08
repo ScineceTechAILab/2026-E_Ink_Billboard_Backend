@@ -130,6 +130,11 @@ public class MqttMessageListener implements MessageHandler {
      */
     private void handleStatusMessage(String deviceCode, String payloadStr) {
         try {
+            if (payloadStr == null || payloadStr.trim().isEmpty()) {
+                log.warn("收到空的状态上报消息，忽略: deviceCode={}", deviceCode);
+                return;
+            }
+
             // 解析JSON消息
             MqttStatusMessage statusMessage = objectMapper.readValue(payloadStr, MqttStatusMessage.class);
 
@@ -150,8 +155,15 @@ public class MqttMessageListener implements MessageHandler {
         try {
             log.info("开始处理心跳消息: deviceCode={}, payload={}", deviceCode, payloadStr);
 
-            // 解析JSON消息
-            MqttHeartbeatMessage heartbeatMessage = objectMapper.readValue(payloadStr, MqttHeartbeatMessage.class);
+            MqttHeartbeatMessage heartbeatMessage;
+            if (payloadStr == null || payloadStr.trim().isEmpty()) {
+                log.info("收到空的心跳消息，作为Ping处理: deviceCode={}", deviceCode);
+                heartbeatMessage = new MqttHeartbeatMessage();
+            } else {
+                // 解析JSON消息
+                heartbeatMessage = objectMapper.readValue(payloadStr, MqttHeartbeatMessage.class);
+            }
+
             log.info("心跳消息解析成功: deviceCode={}, status={}", deviceCode, heartbeatMessage.getStatus());
 
             // 调用PushService处理
