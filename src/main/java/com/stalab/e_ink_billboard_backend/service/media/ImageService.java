@@ -28,9 +28,10 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -102,6 +103,9 @@ public class ImageService {
                 return ImageUploadVO.builder()
                         .id(savedImage.getId())
                         .url(existImage.getOriginalUrl())
+                        .auditStatus(initialStatus)
+                        .auditMessage(initialStatus == AuditStatus.PENDING ?
+                                "图片正在审核中，审核通过后才能使用" : "上传成功")
                         .build();
             }
 
@@ -125,6 +129,9 @@ public class ImageService {
             return ImageUploadVO.builder()
                     .id(savedImage.getId())
                     .url(processedUrl)
+                    .auditStatus(initialStatus)
+                    .auditMessage(initialStatus == AuditStatus.PENDING ?
+                            "图片正在审核中，审核通过后才能使用" : "上传成功")
                     .build();
 
         } catch (IOException e) {
@@ -291,10 +298,11 @@ public class ImageService {
         String key = String.format("upload:daily:image:%d:%s", user.getId(), date);
 
         Long count = redisTemplate.opsForValue().increment(key);
-        // 如果是第一次计数，设置过期时间（24小时后，或者到明天0点）
-        // 这里简单设置为24小时
+        // 如果是第一次计数，设置过期时间到当天23:59:59
         if (count != null && count == 1) {
-            redisTemplate.expire(key, 1, TimeUnit.DAYS);
+            LocalDateTime endOfDay = LocalDate.now().atTime(23, 59, 59);
+            long secondsUntilEndOfDay = Duration.between(LocalDateTime.now(), endOfDay).getSeconds();
+            redisTemplate.expire(key, Duration.ofSeconds(secondsUntilEndOfDay));
         }
         log.info("用户今日图片上传计数增加: userId={}, current={}", user.getId(), count);
     }

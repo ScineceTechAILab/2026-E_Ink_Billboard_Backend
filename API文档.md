@@ -119,6 +119,24 @@ Token 格式为 `Bearer <token>`，中间有一个空格。
 
 ---
 
+#### 1.2 飞书登录（管理员专用）
+
+**接口描述**：使用飞书 code 进行登录，仅限管理员使用。
+
+- **请求方法**：`POST`
+- **请求路径**：`/api/auth/feishu/login`
+- **是否需要认证**：否
+
+**请求参数**：
+
+| 参数名 | 类型 | 必填 | 位置 | 说明 |
+|--------|------|------|------|------|
+| code | String | 是 | Body | 飞书登录凭证 code |
+
+**响应示例**：同 1.1 微信登录
+
+---
+
 ### 2. 图片管理
 
 #### 2.1 上传图片
@@ -136,7 +154,7 @@ Token 格式为 `Bearer <token>`，中间有一个空格。
 | file | MultipartFile | 是 | Form Data | 图片文件 |
 | Authorization | String | 是 | Header | Bearer Token |
 
-**响应示例**：
+**响应示例**（审核通过）：
 
 ```json
 {
@@ -144,7 +162,24 @@ Token 格式为 `Bearer <token>`，中间有一个空格。
   "info": "上传成功",
   "data": {
     "id": 123,
-    "url": "https://example.com/images/processed/xxx.jpg"
+    "url": "https://example.com/images/processed/xxx.jpg",
+    "auditStatus": "APPROVED",
+    "auditMessage": "上传成功"
+  }
+}
+```
+
+**响应示例**（审核中）：
+
+```json
+{
+  "code": 200,
+  "info": "上传成功",
+  "data": {
+    "id": 123,
+    "url": "https://example.com/images/processed/xxx.jpg",
+    "auditStatus": "PENDING",
+    "auditMessage": "图片正在审核中，审核通过后才能使用"
   }
 }
 ```
@@ -155,6 +190,8 @@ Token 格式为 `Bearer <token>`，中间有一个空格。
 |--------|------|------|
 | id | Long | 图片ID |
 | url | String | 处理后的图片URL |
+| auditStatus | String | 审核状态：PENDING（待审核）、APPROVED（已通过） |
+| auditMessage | String | 审核信息提示 |
 
 **错误响应**：
 
@@ -554,6 +591,81 @@ Token 格式为 `Bearer <token>`，中间有一个空格。
 
 ---
 
+#### 4.2 获取待审核列表
+
+**接口描述**：获取系统中待人工复审的内容列表（包含图片和视频）。仅管理员可用。
+
+- **请求方法**：`GET`
+- **请求路径**：`/api/admin/audit/list`
+- **是否需要认证**：是
+
+**查询参数**：
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| current | Long | 否 | 当前页码 |
+| size | Long | 否 | 每页大小 |
+
+**响应示例**：
+
+```json
+{
+  "code": 200,
+  "info": "查询成功",
+  "data": {
+    "records": [
+      {
+        "id": 123,
+        "contentType": "IMAGE",
+        "userId": 1,
+        "userName": "张三",
+        "originalUrl": "http://...",
+        "fileName": "test.jpg",
+        "auditStatus": "PENDING",
+        "auditReason": "WeChat Check Failed",
+        "createTime": "2026-02-08T14:00:00"
+      }
+    ],
+    "total": 1,
+    "current": 1,
+    "size": 10,
+    "pages": 1
+  }
+}
+```
+
+---
+
+#### 4.3 审核内容
+
+**接口描述**：对内容进行人工审核（通过或拒绝）。仅管理员可用。
+
+- **请求方法**：`POST`
+- **请求路径**：`/api/admin/audit`
+- **是否需要认证**：是
+
+**请求体**：
+
+```json
+{
+  "contentId": 123,
+  "contentType": "IMAGE",
+  "auditStatus": "APPROVED",
+  "rejectReason": ""
+}
+```
+
+**请求参数说明**：
+
+| 字段名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| contentId | Long | 是 | 内容ID |
+| contentType | String | 是 | 内容类型：IMAGE, VIDEO |
+| auditStatus | String | 是 | 目标状态：APPROVED, REJECTED |
+| rejectReason | String | 否 | 拒绝原因（状态为REJECTED时建议填写） |
+
+---
+
 ### 5. 设备管理
 
 #### 5.1 获取设备列表
@@ -788,13 +900,13 @@ Token 格式为 `Bearer <token>`，中间有一个空格。
 
 ---
 
-#### 5.6 获取设备播放队列列表（仅管理员）
+#### 5.6 获取设备播放队列列表
 
-**接口描述**：获取指定设备的播放队列列表。队列按优先级排序（游客内容优先于管理员内容）。仅管理员可用。
+**接口描述**：获取指定设备的播放队列列表。队列按优先级排序（游客内容优先于管理员内容）。所有登录用户均可访问。
 
 - **请求方法**：`GET`
 - **请求路径**：`/api/device/{id}/queue`
-- **是否需要认证**：是（管理员）
+- **是否需要认证**：是
 
 **路径参数**：
 
@@ -866,7 +978,6 @@ Token 格式为 `Bearer <token>`，中间有一个空格。
 | 错误码 | 说明 |
 |--------|------|
 | 401 | Token 无效 |
-| 403 | 无权执行此操作，需要管理员权限 |
 | 400 | 设备不存在 |
 
 ---
@@ -928,6 +1039,38 @@ Token 格式为 `Bearer <token>`，中间有一个空格。
 | 401 | Token 无效 |
 | 403 | 无权执行此操作，需要管理员权限 |
 | 400 | 设备不存在、推送记录ID列表不能为空 |
+
+---
+
+#### 5.8 远程配网（仅管理员）
+
+**接口描述**：通过 MQTT 给设备下发 Wi-Fi 配置指令。仅管理员可用。
+
+- **请求方法**：`POST`
+- **请求路径**：`/api/device/{id}/network`
+- **是否需要认证**：是（管理员）
+
+**路径参数**：
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| id | Long | 是 | 设备ID |
+
+**请求体**：
+
+```json
+{
+  "ssid": "MyWiFi",
+  "password": "password123"
+}
+```
+
+**请求参数说明**：
+
+| 字段名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| ssid | String | 是 | Wi-Fi 名称 |
+| password | String | 是 | Wi-Fi 密码 |
 
 ---
 
@@ -1374,3 +1517,16 @@ Token 格式为 `Bearer <token>`，中间有一个空格。
 
 - `USER`：普通用户
 - `ADMIN`：管理员
+
+### ContentType（内容类型）
+
+- `IMAGE`：图片
+- `VIDEO`：视频
+
+### PushStatus（推送状态）
+
+- `PENDING`：待发送
+- `SENT`：已发送
+- `SUCCESS`：推送成功
+- `FAILED`：推送失败
+

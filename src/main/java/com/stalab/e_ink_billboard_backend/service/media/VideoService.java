@@ -23,9 +23,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 
@@ -252,7 +253,10 @@ public class VideoService {
 
         Long count = redisTemplate.opsForValue().increment(key);
         if (count != null && count == 1) {
-            redisTemplate.expire(key, 1, TimeUnit.DAYS);
+            // 设置过期时间到当天23:59:59，确保每日0点重置
+            LocalDateTime endOfDay = LocalDate.now().atTime(23, 59, 59);
+            long secondsUntilEndOfDay = Duration.between(LocalDateTime.now(), endOfDay).getSeconds();
+            redisTemplate.expire(key, Duration.ofSeconds(secondsUntilEndOfDay));
         }
         log.info("用户今日视频上传计数增加: userId={}, current={}", user.getId(), count);
     }

@@ -29,6 +29,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -419,7 +420,7 @@ public class PlayQueueService {
         String date = LocalDate.now().toString();
         String countKey = String.format(DAILY_COUNT_KEY_PREFIX, userId, date);
 
-        Object countObj = redisTemplate.opsForHash().get(countKey, "count");
+        Object countObj = redisTemplate.opsForValue().get(countKey);
         int count = countObj == null ? 0 : Integer.parseInt(countObj.toString());
 
         if (count >= visitorDailyLimit) {
@@ -439,24 +440,17 @@ public class PlayQueueService {
     public void incrementVisitorCount(Long userId, Long contentId) {
         String date = LocalDate.now().toString();
         String countKey = String.format(DAILY_COUNT_KEY_PREFIX, userId, date);
-        String playedSetKey = String.format(PLAYED_SET_KEY_PREFIX, userId, date);
 
-        // 检查是否已播放过此内容（防重复计数）
-        Boolean isMember = redisTemplate.opsForSet().isMember(playedSetKey, contentId.toString());
-        if (Boolean.TRUE.equals(isMember)) {
-            log.debug("内容已播放过，不重复计数: userId={}, contentId={}", userId, contentId);
-            return;
-        }
+        // 直接增加计数，每次推送都计数（删除防重复逻辑）
+        redisTemplate.opsForValue().increment(countKey, 1);
 
-        // 增加计数
-        redisTemplate.opsForHash().increment(countKey, "count", 1);
-        redisTemplate.expire(countKey, Duration.ofDays(1)); // 24小时后过期
+        // 计算精确过期时间：设置到当天23:59:59，确保每日0点重置
+        LocalDateTime endOfDay = LocalDate.now().atTime(23, 59, 59);
+        long secondsUntilEndOfDay = Duration.between(LocalDateTime.now(), endOfDay).getSeconds();
+        redisTemplate.expire(countKey, Duration.ofSeconds(secondsUntilEndOfDay));
 
-        // 添加到已播放集合
-        redisTemplate.opsForSet().add(playedSetKey, contentId.toString());
-        redisTemplate.expire(playedSetKey, Duration.ofDays(1)); // 24小时后过期
-
-        log.info("增加游客播放计数: userId={}, contentId={}", userId, contentId);
+        log.info("增加游客播放计数: userId={}, contentId={}, 过期时间={}",
+                userId, contentId, endOfDay);
     }
 
     /**
@@ -469,7 +463,7 @@ public class PlayQueueService {
         String date = LocalDate.now().toString();
         String countKey = String.format(DAILY_COUNT_KEY_PREFIX, userId, date);
 
-        Object countObj = redisTemplate.opsForHash().get(countKey, "count");
+        Object countObj = redisTemplate.opsForValue().get(countKey);
         return countObj == null ? 0 : Integer.parseInt(countObj.toString());
     }
 

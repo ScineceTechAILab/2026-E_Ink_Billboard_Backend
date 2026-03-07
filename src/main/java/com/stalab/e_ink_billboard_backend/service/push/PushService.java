@@ -75,7 +75,7 @@ public class PushService {
             throw new BusinessException("设备离线，无法推送");
         }
 
-        // 3. 验证图片存在且已审核通过
+        // 3. 验证图片存在
         Image image = imageMapper.selectById(imageId);
         if (image == null) {
             throw new BusinessException("图片不存在");
@@ -84,9 +84,11 @@ public class PushService {
         // 4. 权限检查
         boolean isAdmin = UserRole.ADMIN.getCode().equals(userRole);
         if (!isAdmin) {
+            // 非管理员只能推送自己上传的图片
             if (!image.getUserId().equals(userId)) {
                 throw new BusinessException("无权推送此图片");
             }
+
             if (image.getAuditStatus() != AuditStatus.APPROVED) {
                 throw new BusinessException("图片未审核通过，无法推送");
             }
