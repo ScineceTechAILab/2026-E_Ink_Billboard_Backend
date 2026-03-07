@@ -1,15 +1,13 @@
 package com.stalab.e_ink_billboard_backend.model.vo;
 
+import com.stalab.e_ink_billboard_backend.common.enums.AuditStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * @Author: ywz
- * @CreateTime: 2026-01-07
- * @Description: 图片上传响应VO
- * @Version: 1.0
+ * 图片上传响应VO
  */
 @Data
 @Builder
@@ -22,7 +20,17 @@ public class ImageUploadVO {
     private Long id;
 
     /**
-     * 原图URL
+     * 处理后图片URL
      */
     private String url;
+
+    /**
+     * 审核状态
+     */
+    private AuditStatus auditStatus;
+
+    /**
+     * 审核信息提示
+     */
+    private String auditMessage;
 }
