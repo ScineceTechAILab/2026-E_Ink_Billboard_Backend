@@ -88,7 +88,6 @@ public class PushService {
             if (!image.getUserId().equals(userId)) {
                 throw new BusinessException("无权推送此图片");
             }
-
             if (image.getAuditStatus() != AuditStatus.APPROVED) {
                 throw new BusinessException("图片未审核通过，无法推送");
             }

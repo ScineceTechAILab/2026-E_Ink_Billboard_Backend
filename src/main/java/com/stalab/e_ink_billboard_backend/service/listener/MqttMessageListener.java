@@ -5,7 +5,6 @@ import com.stalab.e_ink_billboard_backend.model.dto.MqttHeartbeatMessage;
 import com.stalab.e_ink_billboard_backend.model.dto.MqttStatusMessage;
 import com.stalab.e_ink_billboard_backend.service.push.PushService;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.integration.annotation.ServiceActivator;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.MessageHandler;
@@ -22,12 +21,13 @@ import java.nio.charset.StandardCharsets;
 @Component
 public class MqttMessageListener implements MessageHandler {
 
-    @Autowired
-    private PushService pushService;
+
+    private final PushService pushService;
 
     private final ObjectMapper objectMapper;
 
-    public MqttMessageListener(ObjectMapper objectMapper) {
+    public MqttMessageListener(ObjectMapper objectMapper,PushService pushService) {
+        this.pushService = pushService;
         this.objectMapper = objectMapper;
         log.info("MQTT消息监听器已初始化");
     }

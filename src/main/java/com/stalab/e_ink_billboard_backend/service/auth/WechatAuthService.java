@@ -60,7 +60,7 @@ public class WechatAuthService implements AuthService {
             userMapper.insert(user);
         }
         log.info("用户登录成功，ID：{}，角色：{}", user.getId(), user.getRole());
-        String token = jwtUtils.createToken(user.getId(), user.getRole());
+        String token = jwtUtils.createToken(user.getId(), user.getRole(),user.getNickname());
 
         return LoginVO.builder()
                 .nickname(user.getNickname())

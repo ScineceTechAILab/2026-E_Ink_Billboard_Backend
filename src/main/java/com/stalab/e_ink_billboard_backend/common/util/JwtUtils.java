@@ -37,12 +37,14 @@ public class JwtUtils {
      * 生成 Token
      * @param userId 用户ID
      * @param role 用户角色 (ADMIN / VISITOR)
+     * @param nickname 用户昵称
      * @return 加密后的 Token 字符串
      */
-    public String createToken(Long userId, String role) {
+    public String createToken(Long userId, String role, String nickname) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("userId", userId);
         claims.put("role", role);
+        claims.put("nickname", nickname);
 
         return Jwts.builder()
                 .setClaims(claims)
@@ -51,6 +53,13 @@ public class JwtUtils {
                 .setExpiration(new Date(System.currentTimeMillis() + expiration)) // 过期时间
                 .signWith(getSigningKey(), SignatureAlgorithm.HS256) // 签名算法
                 .compact();
+    }
+
+    /**
+     * 从 Token 中获取 Nickname
+     */
+    public String getNickname(String token) {
+        return getClaims(token).get("nickname", String.class);
     }
 
     /**
