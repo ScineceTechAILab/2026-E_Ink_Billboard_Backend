@@ -73,7 +73,7 @@ feishu:
   oauth-authorize-url: https://open.feishu.cn/open-apis/authen/v1/authorize
   oauth-token-url: https://open.feishu.cn/open-apis/authen/v2/oauth/token
   user-info-url: https://open.feishu.cn/open-apis/authen/v1/user_info
-  redirect-uri: http://localhost:8083/api/auth/feishu/callback
+  redirect-uri: http://localhost:3000/feishu/callback
 
 
 jwt:
