@@ -25,42 +25,6 @@ fi
 echo "✅ Docker 和 Docker Compose 检查通过"
 echo ""
 
-# 是否使用 SSH 隧道代理 (1=开启, 0=关闭)
-# 如果你本地挂了 ssh -R 8888:...，这里改为 1 可极大提高成功率
-USE_PROXY=1
-PROXY_ADDR="http://127.0.0.1:8888"
-# =========================================
-
-# 定义颜色输出
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-NC='\033[0m' # No Color
-
-
-
-# 1. 拉取最新代码 (强制覆盖模式)
-echo "1. [Git] 准备拉取代码..."
-
-# 临时设置代理
-if [ "$USE_PROXY" -eq 1 ]; then
-    echo -e "   -> 正在应用本地代理: $PROXY_ADDR"
-    git config --global http.proxy $PROXY_ADDR
-fi
-
-# 强制重置代码，避免合并冲突
-git fetch --all
-git reset --hard origin/master
-
-if [ $? -ne 0 ]; then
-    echo -e "${RED}❌ 代码拉取失败！请检查网络或 SSH 隧道状态。${NC}"
-    # 失败后记得清理代理配置，以免影响其他程序
-    [ "$USE_PROXY" -eq 1 ] && git config --global --unset http.proxy
-    exit 1
-fi
-
-# 拉取成功后立即清理代理配置
-[ "$USE_PROXY" -eq 1 ] && git config --global --unset http.proxy
-
 # 获取当前目录
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
