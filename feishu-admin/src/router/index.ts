@@ -41,6 +41,12 @@ const routes: RouteRecordRaw[] = [
   name: 'Audit',
   component: () => import('@/views/AuditListView.vue'),
   meta: { requiresAuth: true }
+},
+{
+  path: '/push-image',
+  name: 'PushImage',
+  component: () => import('@/views/PushImageView.vue'),
+  meta: { requiresAuth: true }
 }
 ]
 

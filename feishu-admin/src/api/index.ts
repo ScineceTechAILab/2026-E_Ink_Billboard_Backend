@@ -9,7 +9,11 @@ import type {
   DeviceDTO,
   AuditItemVO,
   AuditDTO,
-  AuditLogVO
+  AuditLogVO,
+  PushImageDTO,
+  PushBatchDTO,
+  ContentPushVO,
+  NetworkConfigDTO
 } from '@/types'
 
 export const authApi = {
@@ -76,6 +80,33 @@ export const deviceApi = {
 
   delete(id: number): Promise<ApiResponse<null>> {
     return request.delete(`/api/device/${id}`)
+  },
+
+  changeNetwork(id: number, data: NetworkConfigDTO): Promise<ApiResponse<null>> {
+    return request.post(`/api/device/${id}/network`, data)
+  }
+}
+
+export const pushApi = {
+  pushImage(data: PushImageDTO): Promise<ApiResponse<null>> {
+    return request.post('/api/push/image', data)
+  },
+
+  pushVideo(data: { deviceId: number; videoId: number; verificationCode?: string }): Promise<ApiResponse<null>> {
+    return request.post('/api/push/video', data)
+  },
+
+  pushBatch(data: PushBatchDTO): Promise<ApiResponse<null>> {
+    return request.post('/api/push/batch', data)
+  },
+
+  getHistory(params?: {
+    current?: number
+    size?: number
+    deviceId?: number
+    userId?: number
+  }): Promise<ApiResponse<PageResult<ContentPushVO>>> {
+    return request.get('/api/push/history', { params })
   }
 }
 
