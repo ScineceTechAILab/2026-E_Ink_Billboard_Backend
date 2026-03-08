@@ -114,6 +114,13 @@
                 编辑
               </button>
               <button
+                @click="showNetworkDialog(device)"
+                class="flex-1 btn-secondary text-sm py-2 text-blue-600 hover:bg-blue-50"
+              >
+                <i class="fas fa-wifi mr-1"></i>
+                换网
+              </button>
+              <button
                 @click="confirmDelete(device)"
                 class="flex-1 btn-secondary text-sm py-2 text-red-500 hover:bg-red-50"
               >
@@ -224,6 +231,35 @@
         <button @click="detailVisible = false" class="btn-secondary">关闭</button>
       </template>
     </el-dialog>
+
+    <el-dialog
+      v-model="networkDialogVisible"
+      :title="`更换网络 - ${selectedNetworkDevice?.deviceName}`"
+      width="500px"
+      :close-on-click-modal="false"
+    >
+      <el-form :model="networkForm" :rules="networkRules" ref="networkFormRef" label-width="100px">
+        <el-form-item label="WiFi名称" prop="ssid">
+          <el-input v-model="networkForm.ssid" placeholder="请输入WiFi名称" class="input-field" />
+        </el-form-item>
+        <el-form-item label="WiFi密码" prop="password">
+          <el-input
+            v-model="networkForm.password"
+            type="password"
+            show-password
+            placeholder="请输入WiFi密码"
+            class="input-field"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <button @click="networkDialogVisible = false" class="btn-secondary">取消</button>
+        <button @click="handleChangeNetwork" :disabled="changingNetwork" class="btn-primary ml-3">
+          <el-icon v-if="changingNetwork" class="is-loading mr-1"><Loading /></el-icon>
+          {{ changingNetwork ? '发送中...' : '更换网络' }}
+        </button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -244,9 +280,13 @@ const searchKeyword = ref('')
 const statusFilter = ref('')
 const dialogVisible = ref(false)
 const detailVisible = ref(false)
+const networkDialogVisible = ref(false)
 const editingDevice = ref<DeviceVO | null>(null)
 const selectedDevice = ref<DeviceVO | null>(null)
+const selectedNetworkDevice = ref<DeviceVO | null>(null)
 const formRef = ref<FormInstance>()
+const networkFormRef = ref<FormInstance>()
+const changingNetwork = ref(false)
 
 const form = reactive<DeviceDTO>({
   deviceName: '',
@@ -264,6 +304,22 @@ const rules: FormRules = {
   deviceCode: [
     { required: true, message: '请输入设备编码', trigger: 'blur' },
     { pattern: /^[a-zA-Z0-9_-]+$/, message: '设备编码只能包含字母、数字、下划线和短横线', trigger: 'blur' }
+  ]
+}
+
+const networkForm = reactive({
+  ssid: '',
+  password: ''
+})
+
+const networkRules: FormRules = {
+  ssid: [
+    { required: true, message: '请输入WiFi名称', trigger: 'blur' },
+    { min: 1, max: 32, message: 'WiFi名称长度在 1 到 32 个字符', trigger: 'blur' }
+  ],
+  password: [
+    { required: true, message: '请输入WiFi密码', trigger: 'blur' },
+    { min: 8, max: 63, message: 'WiFi密码长度在 8 到 63 个字符', trigger: 'blur' }
   ]
 }
 
@@ -378,6 +434,37 @@ const confirmDelete = (device: DeviceVO) => {
       }
     })
     .catch(() => {})
+}
+
+const showNetworkDialog = (device: DeviceVO) => {
+  selectedNetworkDevice.value = device
+  Object.assign(networkForm, {
+    ssid: '',
+    password: ''
+  })
+  networkDialogVisible.value = true
+}
+
+const handleChangeNetwork = async () => {
+  if (!networkFormRef.value || !selectedNetworkDevice.value) return
+
+  await networkFormRef.value.validate(async (valid) => {
+    if (!valid) return
+
+    changingNetwork.value = true
+    try {
+      await deviceApi.changeNetwork(selectedNetworkDevice.value.id, {
+        ssid: networkForm.ssid,
+        password: networkForm.password
+      })
+      ElMessage.success('配网指令已下发')
+      networkDialogVisible.value = false
+    } catch (error: any) {
+      ElMessage.error(error.message || '配网失败')
+    } finally {
+      changingNetwork.value = false
+    }
+  })
 }
 
 const goBack = () => {

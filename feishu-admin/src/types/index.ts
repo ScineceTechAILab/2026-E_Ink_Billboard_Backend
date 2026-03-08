@@ -117,3 +117,33 @@ export interface UserState {
     role: string
   } | null
 }
+
+export interface PushImageDTO {
+  deviceId: number
+  imageId: number
+  verificationCode?: string
+}
+
+export interface PushBatchDTO {
+  deviceIds: number[]
+  contentId: number
+  contentType: 'IMAGE' | 'VIDEO'
+}
+
+export interface ContentPushVO {
+  id: number
+  deviceId: number
+  deviceName: string
+  contentId: number
+  contentType: 'IMAGE' | 'VIDEO'
+  pushStatus: 'PENDING' | 'SENDING' | 'SUCCESS' | 'FAILED'
+  pushTime: string
+  userId: number
+  userName: string
+  errorMessage: string | null
+}
+
+export interface NetworkConfigDTO {
+  ssid: string
+  password: string
+}

@@ -102,9 +102,12 @@
                 {{ stats.pendingAudits }}
               </div>
             </button>
-            <button class="btn-secondary text-center py-4 opacity-50 cursor-not-allowed">
-              <div class="text-3xl mb-2">📊</div>
-              <div>数据统计</div>
+            <button
+              @click="goToPushImage"
+              class="btn-primary text-center py-4 bg-gradient-to-r from-blue-500 to-cyan-500"
+            >
+              <div class="text-3xl mb-2">📤</div>
+              <div>图片推送</div>
             </button>
           </div>
         </div>
@@ -210,6 +213,10 @@ const goToDevices = () => {
 
 const goToAudit = () => {
   router.push('/audit')
+}
+
+const goToPushImage = () => {
+  router.push('/push-image')
 }
 
 onMounted(() => {
