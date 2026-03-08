@@ -37,3 +37,5 @@ build/
 /.local-config
 /docs/
 /.trae/
+/feishu-admin/部署文档.md
+/feishu-admin/快速部署指南.md
