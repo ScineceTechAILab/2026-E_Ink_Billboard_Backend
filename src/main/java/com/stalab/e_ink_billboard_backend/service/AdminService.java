@@ -5,10 +5,12 @@ import com.stalab.e_ink_billboard_backend.common.enums.AuditStatus;
 import com.stalab.e_ink_billboard_backend.common.enums.ContentType;
 import com.stalab.e_ink_billboard_backend.common.enums.DeviceStatus;
 import com.stalab.e_ink_billboard_backend.common.exception.BusinessException;
+import com.stalab.e_ink_billboard_backend.mapper.AuditLogMapper;
 import com.stalab.e_ink_billboard_backend.mapper.DeviceMapper;
 import com.stalab.e_ink_billboard_backend.mapper.ImageMapper;
 import com.stalab.e_ink_billboard_backend.mapper.UserMapper;
 import com.stalab.e_ink_billboard_backend.mapper.VideoMapper;
+import com.stalab.e_ink_billboard_backend.mapper.po.AuditLog;
 import com.stalab.e_ink_billboard_backend.mapper.po.Device;
 import com.stalab.e_ink_billboard_backend.mapper.po.Image;
 import com.stalab.e_ink_billboard_backend.mapper.po.User;
@@ -21,16 +23,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-
 /**
- * @Author: ywz
- * @CreateTime: 2026-01-07
- * @Description: 管理员服务
- * @Version: 1.0
+ * 管理员服务
  */
 @Slf4j
 @Service
@@ -40,12 +39,15 @@ public class AdminService {
     private final VideoMapper videoMapper;
     private final DeviceMapper deviceMapper;
     private final UserMapper userMapper;
+    private final AuditLogMapper auditLogMapper;
 
-    public AdminService(ImageMapper imageMapper, VideoMapper videoMapper, DeviceMapper deviceMapper, UserMapper userMapper) {
+    public AdminService(ImageMapper imageMapper, VideoMapper videoMapper, DeviceMapper deviceMapper,
+                        UserMapper userMapper, AuditLogMapper auditLogMapper) {
         this.imageMapper = imageMapper;
         this.videoMapper = videoMapper;
         this.deviceMapper = deviceMapper;
         this.userMapper = userMapper;
+        this.auditLogMapper = auditLogMapper;
     }
 
     /**
@@ -53,21 +55,17 @@ public class AdminService {
      * @return 统计数据
      */
     public StatsVO getStats() {
-        // 1. 统计在线设备数
         long onlineDevicesCount = deviceMapper.selectCount(
                 new LambdaQueryWrapper<Device>()
                         .eq(Device::getStatus, DeviceStatus.ONLINE)
         );
         int onlineDevices = (int) onlineDevicesCount;
 
-        // 2. 统计待审核内容数量
-        // Image中auditStatus为PENDING的数量
         long pendingImages = imageMapper.selectCount(
                 new LambdaQueryWrapper<Image>()
                         .eq(Image::getAuditStatus, AuditStatus.PENDING)
         );
 
-        // Video中auditStatus为"PENDING"的数量
         long pendingVideos = videoMapper.selectCount(
                 new LambdaQueryWrapper<Video>()
                         .eq(Video::getAuditStatus, AuditStatus.PENDING.name())
@@ -75,14 +73,11 @@ public class AdminService {
 
         int pendingAudits = (int) (pendingImages + pendingVideos);
 
-        // 3. 统计已通过内容数量
-        // Image中auditStatus为APPROVED的数量
         long approvedImages = imageMapper.selectCount(
                 new LambdaQueryWrapper<Image>()
                         .eq(Image::getAuditStatus, AuditStatus.APPROVED)
         );
 
-        // Video中auditStatus为APPROVED的数量
         long approvedVideos = videoMapper.selectCount(
                 new LambdaQueryWrapper<Video>()
                         .eq(Video::getAuditStatus, AuditStatus.APPROVED.name())
@@ -90,12 +85,10 @@ public class AdminService {
 
         int approvedContent = (int) (approvedImages + approvedVideos);
 
-        // 构建返回对象（同时支持两种字段名格式）
         return StatsVO.builder()
                 .onlineDevices(onlineDevices)
                 .pendingAudits(pendingAudits)
                 .approvedContent(approvedContent)
-                // 兼容字段名
                 .online(onlineDevices)
                 .pending(pendingAudits)
                 .approved(approvedContent)
@@ -103,77 +96,80 @@ public class AdminService {
     }
 
     /**
-     * 获取待审核列表（包含图片和视频）
+     * 获取审核列表（支持状态筛选）
      *
      * @param current 当前页
      * @param size    每页大小
+     * @param auditStatus 审核状态筛选
+     * @param contentType 内容类型筛选
      * @return 分页结果
      */
-    public PageResult<AuditItemVO> getPendingAuditList(Long current, Long size) {
+    public PageResult<AuditItemVO> getAuditList(Long current, Long size,
+                                               AuditStatus auditStatus,
+                                               ContentType contentType) {
         if (current == null || current < 1) current = 1L;
         if (size == null || size < 1) size = 10L;
 
-        List<AuditItemVO> allPendingItems = new ArrayList<>();
+        List<AuditItemVO> allItems = new ArrayList<>();
 
-        // 1. 查询所有待审核图片
-        List<Image> pendingImages = imageMapper.selectList(
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Image>()
-                        .eq(Image::getAuditStatus, AuditStatus.PENDING)
-        );
+        if (contentType == null || contentType == ContentType.IMAGE) {
+            LambdaQueryWrapper<Image> imgWrapper = new LambdaQueryWrapper<>();
+            if (auditStatus != null) {
+                imgWrapper.eq(Image::getAuditStatus, auditStatus);
+            }
+            List<Image> images = imageMapper.selectList(imgWrapper);
 
-        for (Image img : pendingImages) {
-            allPendingItems.add(AuditItemVO.builder()
-                    .id(img.getId())
-                    .contentType(ContentType.IMAGE)
-                    .userId(img.getUserId())
-                    .originalUrl(img.getOriginalUrl()) // 管理员看原图
-                    .fileName(img.getFileName())
-                    .auditStatus(img.getAuditStatus())
-                    .auditReason(img.getAuditReason())
-                    .createTime(img.getCreateTime())
-                    .build());
+            for (Image img : images) {
+                allItems.add(AuditItemVO.builder()
+                        .id(img.getId())
+                        .contentType(ContentType.IMAGE)
+                        .userId(img.getUserId())
+                        .originalUrl(img.getOriginalUrl())
+                        .fileName(img.getFileName())
+                        .auditStatus(img.getAuditStatus())
+                        .auditReason(img.getAuditReason())
+                        .createTime(img.getCreateTime())
+                        .build());
+            }
         }
 
-        // 2. 查询所有待审核视频
-        List<Video> pendingVideos = videoMapper.selectList(
-                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Video>()
-                        .eq(Video::getAuditStatus, AuditStatus.PENDING.name())
-        );
+        if (contentType == null || contentType == ContentType.VIDEO) {
+            LambdaQueryWrapper<Video> videoWrapper = new LambdaQueryWrapper<>();
+            if (auditStatus != null) {
+                videoWrapper.eq(Video::getAuditStatus, auditStatus.name());
+            }
+            List<Video> videos = videoMapper.selectList(videoWrapper);
 
-        for (Video video : pendingVideos) {
-            allPendingItems.add(AuditItemVO.builder()
-                    .id(video.getId())
-                    .contentType(ContentType.VIDEO)
-                    .userId(video.getUserId())
-                    .originalUrl(video.getOriginalUrl())
-                    .fileName(video.getFileName())
-                    .auditStatus(AuditStatus.PENDING)
-                    .auditReason(null) // 视频暂时没有auditReason字段，或者可以加
-                    .createTime(video.getCreateTime())
-                    .build());
+            for (Video video : videos) {
+                allItems.add(AuditItemVO.builder()
+                        .id(video.getId())
+                        .contentType(ContentType.VIDEO)
+                        .userId(video.getUserId())
+                        .originalUrl(video.getOriginalUrl())
+                        .fileName(video.getFileName())
+                        .auditStatus(AuditStatus.valueOf(video.getAuditStatus()))
+                        .auditReason(video.getFailReason())
+                        .createTime(video.getCreateTime())
+                        .build());
+            }
         }
 
-        // 3. 填充用户信息（批量查询优化，或者循环查询）
-        // 这里简单循环查询，后续可优化
-        for (AuditItemVO item : allPendingItems) {
+        for (AuditItemVO item : allItems) {
             User user = userMapper.selectById(item.getUserId());
             if (user != null) {
                 item.setUserName(user.getNickname());
             }
         }
 
-        // 4. 排序（按时间倒序，最早提交的在最后？或者最先提交的在最前？通常审核按提交顺序，先提交先审）
-        // 这里按提交时间升序（先提交的先显示）
-        allPendingItems.sort(Comparator.comparing(AuditItemVO::getCreateTime));
+        allItems.sort(Comparator.comparing(AuditItemVO::getCreateTime).reversed());
 
-        // 5. 内存分页
-        int total = allPendingItems.size();
+        int total = allItems.size();
         int start = (int) ((current - 1) * size);
         int end = Math.min(start + size.intValue(), total);
 
         List<AuditItemVO> pageRecords = new ArrayList<>();
         if (start < total) {
-            pageRecords = allPendingItems.subList(start, end);
+            pageRecords = allItems.subList(start, end);
         }
 
         return PageResult.<AuditItemVO>builder()
@@ -186,17 +182,25 @@ public class AdminService {
     }
 
     /**
+     * 获取待审核列表
+     */
+    public PageResult<AuditItemVO> getPendingAuditList(Long current, Long size) {
+        return getAuditList(current, size, AuditStatus.PENDING, null);
+    }
+
+    /**
      * 审核内容
-     *
-     * @param dto 审核结果
      */
     @Transactional(rollbackFor = Exception.class)
-    public void auditContent(AuditResultDTO dto) {
+    public void auditContent(AuditResultDTO dto, Long auditorId, String auditorName) {
+        AuditStatus beforeStatus = null;
+
         if (dto.getContentType() == ContentType.IMAGE) {
             Image image = imageMapper.selectById(dto.getContentId());
             if (image == null) {
                 throw new BusinessException("图片不存在");
             }
+            beforeStatus = image.getAuditStatus();
 
             if (dto.getAuditStatus() == AuditStatus.REJECTED) {
                 if (dto.getRejectReason() == null || dto.getRejectReason().trim().isEmpty()) {
@@ -206,7 +210,6 @@ public class AdminService {
             }
 
             image.setAuditStatus(dto.getAuditStatus());
-            // 更新时间不需要手动设吗？Entity可能有自动填充，这里简单起见不设
             imageMapper.updateById(image);
             log.info("管理员审核图片: id={}, status={}, reason={}", image.getId(), dto.getAuditStatus(), dto.getRejectReason());
 
@@ -215,17 +218,98 @@ public class AdminService {
             if (video == null) {
                 throw new BusinessException("视频不存在");
             }
+            beforeStatus = AuditStatus.valueOf(video.getAuditStatus());
 
             if (dto.getAuditStatus() == AuditStatus.REJECTED) {
                 if (dto.getRejectReason() == null || dto.getRejectReason().trim().isEmpty()) {
                     throw new BusinessException("拒绝时必须填写原因");
                 }
-                video.setFailReason(dto.getRejectReason()); // 视频用failReason存拒绝原因
+                video.setFailReason(dto.getRejectReason());
             }
 
             video.setAuditStatus(dto.getAuditStatus().name());
             videoMapper.updateById(video);
             log.info("管理员审核视频: id={}, status={}, reason={}", video.getId(), dto.getAuditStatus(), dto.getRejectReason());
         }
+
+        saveAuditLog(dto.getContentId(), dto.getContentType(), beforeStatus,
+                dto.getAuditStatus(), auditorId, auditorName, dto.getRejectReason(), "AUDIT");
+    }
+
+    /**
+     * 重新审核（将已审核内容重置为待审核）
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void reAudit(Long contentId, ContentType contentType, Long auditorId, String auditorName) {
+        AuditStatus beforeStatus = null;
+
+        if (contentType == ContentType.IMAGE) {
+            Image image = imageMapper.selectById(contentId);
+            if (image == null) {
+                throw new BusinessException("图片不存在");
+            }
+            beforeStatus = image.getAuditStatus();
+
+            if (beforeStatus == AuditStatus.PENDING) {
+                throw new BusinessException("该内容已是待审核状态");
+            }
+
+            image.setAuditStatus(AuditStatus.PENDING);
+            image.setAuditReason(null);
+            imageMapper.updateById(image);
+            log.info("管理员重新审核图片: id={}, previousStatus={}", image.getId(), beforeStatus);
+
+        } else if (contentType == ContentType.VIDEO) {
+            Video video = videoMapper.selectById(contentId);
+            if (video == null) {
+                throw new BusinessException("视频不存在");
+            }
+            beforeStatus = AuditStatus.valueOf(video.getAuditStatus());
+
+            if (beforeStatus == AuditStatus.PENDING) {
+                throw new BusinessException("该内容已是待审核状态");
+            }
+
+            video.setAuditStatus(AuditStatus.PENDING.name());
+            video.setFailReason(null);
+            videoMapper.updateById(video);
+            log.info("管理员重新审核视频: id={}, previousStatus={}", video.getId(), beforeStatus);
+        }
+
+        saveAuditLog(contentId, contentType, beforeStatus, AuditStatus.PENDING,
+                auditorId, auditorName, null, "RE_AUDIT");
+    }
+
+    /**
+     * 保存审核记录
+     */
+    private void saveAuditLog(Long contentId, ContentType contentType,
+                              AuditStatus beforeStatus, AuditStatus afterStatus,
+                              Long auditorId, String auditorName,
+                              String auditReason, String operationType) {
+        AuditLog auditLog = AuditLog.builder()
+                .contentId(contentId)
+                .contentType(contentType)
+                .beforeStatus(beforeStatus)
+                .afterStatus(afterStatus)
+                .auditorId(auditorId)
+                .auditorName(auditorName)
+                .auditReason(auditReason)
+                .operationType(operationType)
+                .createTime(LocalDateTime.now())
+                .build();
+        auditLogMapper.insert(auditLog);
+    }
+
+    /**
+     * 获取内容的审核历史记录
+     */
+    public List<AuditLog> getAuditHistory(Long contentId, ContentType contentType) {
+        return auditLogMapper.selectList(
+                new LambdaQueryWrapper<AuditLog>()
+                        .eq(AuditLog::getContentId, contentId)
+                        .eq(AuditLog::getContentType, contentType)
+                        .orderByDesc(AuditLog::getCreateTime)
+        );
     }
 }

@@ -1275,6 +1275,78 @@ Token 格式为 `Bearer <token>`，中间有一个空格。
 
 **Topic格式**：`device/{deviceCode}/cmd`
 
+**QoS级别**：默认QoS=1（可通过配置修改）
+
+**消息序列化**：使用JSON格式序列化，由Hutool JSONUtil.toJsonStr实现
+
+---
+
+##### 7.1.1 配网命令（WIFI_CONFIG）
+
+**触发场景**：管理员通过API下发WiFi配置命令
+
+**API接口**：`POST /api/device/{id}/network`（仅管理员）
+
+**时序图**：
+```mermaid
+sequenceDiagram
+    participant Admin as 管理员
+    participant Backend as 后端
+    participant ESP32 as ESP32设备
+    
+    Admin->>Backend: 下发配网指令
+    Backend->>Backend: 权限验证（仅管理员）
+    Backend->>Backend: 构建配网消息
+    Backend->>ESP32: 发送配网命令
+    ESP32->>ESP32: 连接WiFi
+```
+
+**消息格式**：
+
+```json
+{
+  "type": "WIFI_CONFIG",
+  "ssid": "MyWiFiNetwork",
+  "password": "wifiPassword123",
+  "timestamp": 1704614400000
+}
+```
+
+**字段说明**：
+
+| 字段名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| type | String | 是 | 命令类型：固定为 "WIFI_CONFIG" |
+| ssid | String | 是 | WiFi网络名称（SSID） |
+| password | String | 是 | WiFi密码 |
+| timestamp | Long | 是 | 时间戳（毫秒） |
+
+---
+
+##### 7.1.2 播放命令（IMAGE/VIDEO）
+
+**触发场景**：
+- 管理员手动推送内容到设备
+- 播放队列自动切换内容
+- 设备开机后请求播放内容
+
+**时序图**：
+```mermaid
+sequenceDiagram
+    participant Admin as 管理员/用户
+    participant Backend as 后端
+    participant ESP32 as ESP32设备
+    
+    Admin->>Backend: 推送内容
+    Backend->>Backend: 生成播放命令
+    Backend->>ESP32: 发送播放命令
+    ESP32->>ESP32: 下载内容
+    ESP32->>Backend: 状态上报(DOWNLOADING)
+    ESP32->>ESP32: 显示内容
+    ESP32->>Backend: 状态上报(SUCCESS)
+    Backend->>Backend: 更新推送状态
+```
+
 **消息格式**：
 
 ```json
@@ -1291,21 +1363,40 @@ Token 格式为 `Bearer <token>`，中间有一个空格。
 
 **字段说明**：
 
-| 字段名 | 类型 | 说明 |
-|--------|------|------|
-| type | String | 内容类型：IMAGE（图片）、VIDEO（视频） |
-| contentId | Long | 内容ID |
-| url | String | 下载URL（Presigned URL，有效期2小时） |
-| size | Long | 文件大小（字节） |
-| md5 | String | 文件MD5值（可选） |
-| timestamp | Long | 时间戳（毫秒） |
-| messageId | String | 消息ID（UUID，用于状态上报时关联） |
+| 字段名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| type | String | 是 | 内容类型：IMAGE（图片）、VIDEO（视频） |
+| contentId | Long | 是 | 内容ID |
+| url | String | 是 | 下载URL（Presigned URL） |
+| size | Long | 是 | 文件大小（字节） |
+| md5 | String | 是 | 文件MD5值 |
+| timestamp | Long | 是 | 时间戳（毫秒） |
+| messageId | String | 是 | 消息ID（UUID，用于状态上报时关联） |
+
+**响应格式**：ESP32通过 `/status` Topic上报状态，详见7.2章节。
+
+**错误码表**：
+
+| 错误码 | 说明 |
+|--------|------|
+| DOWNLOAD_FAILED | 下载失败 |
+| MD5_MISMATCH | MD5校验失败 |
+| DISPLAY_ERROR | 显示错误 |
+| INVALID_FORMAT | 内容格式无效 |
 
 ---
 
 #### 7.2 ESP32 → 后端（状态上报）
 
 **Topic格式**：`device/{deviceCode}/status`
+
+**上报触发条件**：
+- 设备开机启动
+- 推送任务状态变更（DOWNLOADING → DISPLAYING → SUCCESS/FAILED）
+- 发生异常（下载失败、显示错误等）
+
+**上报周期**：
+- 事件触发：实时上报
 
 **消息格式**：
 
@@ -1320,18 +1411,35 @@ Token 格式为 `Bearer <token>`，中间有一个空格。
 
 **字段说明**：
 
-| 字段名 | 类型 | 说明 |
-|--------|------|------|
-| status | String | 状态：SUCCESS（成功）、FAILED（失败）、DOWNLOADING（下载中）、DISPLAYING（显示中） |
-| messageId | String | 对应的命令消息ID |
-| error | String | 错误信息（失败时才有） |
-| timestamp | Long | 时间戳（毫秒） |
+| 字段名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| status | String | 是 | 状态：SUCCESS（成功）、FAILED（失败）、DOWNLOADING（下载中）、DISPLAYING（显示中） |
+| messageId | String | 是 | 对应的命令消息ID |
+| error | String | 否 | 错误信息（失败时才有） |
+| timestamp | Long | 是 | 时间戳（毫秒） |
 
 ---
 
 #### 7.3 ESP32 → 后端（心跳消息）
 
 **Topic格式**：`device/{deviceCode}/heartbeat`
+
+**时序图**：
+```mermaid
+sequenceDiagram
+    participant ESP32 as ESP32设备
+    participant Backend as 后端
+    
+    loop 每30秒
+        ESP32->>Backend: 发送心跳消息
+        Backend->>Backend: 更新设备心跳时间
+        Backend->>Backend: 设置设备为ONLINE
+    end
+```
+
+**心跳周期**：30秒
+
+**保活超时判定**：超过5个心跳周期（150秒）未收到心跳视为设备离线
 
 **消息格式**：
 
@@ -1349,17 +1457,42 @@ Token 格式为 `Bearer <token>`，中间有一个空格。
 
 **字段说明**：
 
-| 字段名 | 类型 | 说明 |
-|--------|------|------|
-| deviceCode | String | 设备编码 |
-| status | String | 设备状态：ONLINE |
-| currentContentId | Long | 当前显示的内容ID（可选） |
-| currentContentType | String | 当前内容类型：IMAGE、VIDEO（可选） |
-| battery | Integer | 电池电量（0-100，可选） |
-| signal | Integer | WiFi信号强度（dBm，可选） |
-| timestamp | Long | 时间戳（毫秒） |
+| 字段名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| deviceCode | String | 是 | 设备编码 |
+| status | String | 是 | 设备状态：ONLINE |
+| currentContentId | Long | 否 | 当前显示的内容ID（可选） |
+| currentContentType | String | 否 | 当前内容类型：IMAGE、VIDEO（可选） |
+| battery | Integer | 否 | 电池电量（0-100，可选） |
+| signal | Integer | 否 | WiFi信号强度（dBm，可选） |
+| timestamp | Long | 是 | 时间戳（毫秒） |
+
+**与状态上报的本质区别**：
+
+| 对比项 | 心跳消息 | 状态上报 |
+|--------|---------|---------|
+| 数据量 | 小（核心字段3-7个） | 中等（4个字段） |
+| 实时性 | 周期性（30秒） | 事件触发（实时） |
+| 服务器处理逻辑 | 更新心跳时间、设置在线状态 | 更新推送状态、记录错误 |
+| 可靠性要求 | 中（丢失几个不影响） | 高（必须可靠送达） |
+| 变化频率 | 低（状态相对稳定） | 高（状态频繁变化） |
 
 ---
+
+#### 7.4 错误码表
+
+| 错误码 | 说明 | 建议处理方式 |
+|--------|------|-------------|
+| TIMEOUT | 操作超时 | 重试或检查网络 |
+| DEVICE_NOT_FOUND | 设备不存在 | 检查deviceCode是否正确 |
+| DOWNLOAD_FAILED | 下载失败 | 检查URL是否有效、网络连接 |
+| MD5_MISMATCH | MD5校验失败 | 重新上传文件 |
+| DISPLAY_ERROR | 显示错误 | 检查文件格式是否兼容 |
+
+---
+
+
+
 
 ## 数据模型
 

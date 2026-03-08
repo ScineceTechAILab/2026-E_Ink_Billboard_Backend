@@ -43,7 +43,7 @@ public class FeishuAuthService implements AuthService {
         String accessToken = getAccessToken(code);
         FeishuUserInfoVO userInfo = getUserInfo(accessToken);
         User user = getOrCreateFeishuUser(userInfo);
-        String token = jwtUtils.createToken(user.getId(), user.getRole());
+        String token = jwtUtils.createToken(user.getId(), user.getRole(), user.getNickname());
         log.info("飞书管理员登录成功，用户ID：{}，昵称：{}", user.getId(), user.getNickname());
         return LoginVO.builder()
                 .nickname(user.getNickname())
