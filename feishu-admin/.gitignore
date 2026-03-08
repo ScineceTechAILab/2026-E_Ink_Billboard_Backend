@@ -30,3 +30,4 @@ coverage
 /.env.development
 /.env.production
 /nginx.conf
+/网络配置检查报告.md
