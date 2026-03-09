@@ -181,3 +181,8 @@ export interface DeviceStatusVO {
   offlineRate: number
   abnormalRate: number
 }
+
+export interface AnnouncementVO {
+  content: string
+  updatedAt: string
+}

@@ -216,8 +216,7 @@ const editableAnnouncement = ref('')
 const isEditing = ref(false)
 const updatedAt = ref('')
 
-const ANNOUNCEMENT_KEY = 'dashboard_announcement'
-const ANNOUNCEMENT_UPDATED_AT_KEY = 'dashboard_announcement_updated_at'
+
 
 const devices = ref<DeviceVO[]>([])
 
@@ -269,17 +268,14 @@ const loadHitokoto = async () => {
 }
 
 /**
- * 从本地存储加载公告
+ * 从后端加载公告
  */
-const loadAnnouncement = () => {
+const loadAnnouncement = async () => {
   try {
-    const savedAnnouncement = localStorage.getItem(ANNOUNCEMENT_KEY)
-    const savedUpdatedAt = localStorage.getItem(ANNOUNCEMENT_UPDATED_AT_KEY)
-    if (savedAnnouncement) {
-      announcement.value = savedAnnouncement
-    }
-    if (savedUpdatedAt) {
-      updatedAt.value = savedUpdatedAt
+    const res = await adminApi.getAnnouncement()
+    if (res.code === 200 && res.data) {
+      announcement.value = res.data.content || res.data.announcement || ''
+      updatedAt.value = res.data.updatedAt || ''
     }
   } catch (error) {
     console.error('Load announcement failed:', error)
@@ -287,17 +283,20 @@ const loadAnnouncement = () => {
 }
 
 /**
- * 保存公告到本地存储
+ * 保存公告到后端
  */
-const saveAnnouncement = () => {
+const saveAnnouncement = async () => {
   try {
-    const now = new Date().toISOString()
-    localStorage.setItem(ANNOUNCEMENT_KEY, editableAnnouncement.value)
-    localStorage.setItem(ANNOUNCEMENT_UPDATED_AT_KEY, now)
-    announcement.value = editableAnnouncement.value
-    updatedAt.value = now
-    isEditing.value = false
-    ElMessage.success('公告保存成功！')
+    const res = await adminApi.saveAnnouncement(editableAnnouncement.value)
+    if (res.code === 200) {
+      announcement.value = editableAnnouncement.value
+      updatedAt.value = new Date().toISOString()
+      isEditing.value = false
+      ElMessage.success('公告保存成功！')
+      await loadAnnouncement()
+    } else {
+      ElMessage.error(res.info || '公告保存失败，请重试')
+    }
   } catch (error) {
     console.error('Save announcement failed:', error)
     ElMessage.error('公告保存失败，请重试')
