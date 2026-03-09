@@ -19,6 +19,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+
 
 /**
  * 飞书登录服务（管理员专用）
@@ -133,31 +135,26 @@ public class FeishuAuthService implements AuthService {
             user.setFeishuEmployeeNo(userInfo.getEmployeeNo());
             user.setRole(UserRole.ADMIN.getCode());
             user.setLoginSource(LoginSource.FEISHU.getCode());
+            user.setLastLoginTime(LocalDateTime.now());
             userMapper.insert(user);
             log.info("创建飞书管理员用户成功，ID：{}，昵称：{}", user.getId(), user.getNickname());
         } else {
-            boolean needUpdate = false;
             if (!StrUtil.equals(user.getRole(), UserRole.ADMIN.getCode())) {
                 user.setRole(UserRole.ADMIN.getCode());
-                needUpdate = true;
                 log.info("用户ID：{} 角色更新为ADMIN", user.getId());
             }
             if (!StrUtil.equals(user.getLoginSource(), LoginSource.FEISHU.getCode())) {
                 user.setLoginSource(LoginSource.FEISHU.getCode());
-                needUpdate = true;
             }
             if (StrUtil.isNotBlank(userInfo.getName()) && !StrUtil.equals(user.getNickname(), userInfo.getName())) {
                 user.setNickname(userInfo.getName());
-                needUpdate = true;
             }
             if (StrUtil.isNotBlank(userInfo.getAvatar()) && !StrUtil.equals(user.getAvatar(), userInfo.getAvatar())) {
                 user.setAvatar(userInfo.getAvatar());
-                needUpdate = true;
             }
-            if (needUpdate) {
-                userMapper.updateById(user);
-                log.info("更新飞书用户信息成功，ID：{}", user.getId());
-            }
+            user.setLastLoginTime(LocalDateTime.now());
+            userMapper.updateById(user);
+            log.info("更新飞书用户信息成功，ID：{}", user.getId());
         }
         return user;
     }

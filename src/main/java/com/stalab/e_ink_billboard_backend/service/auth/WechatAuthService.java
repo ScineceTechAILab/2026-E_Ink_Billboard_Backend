@@ -16,6 +16,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
+
 /**
  * 微信小程序登录实现（游客）
  */
@@ -57,7 +59,11 @@ public class WechatAuthService implements AuthService {
             user.setWx_openid(openid);
             user.setRole(UserRole.VISITOR.getCode());
             user.setLoginSource(LoginSource.WECHAT.getCode());
+            user.setLastLoginTime(LocalDateTime.now());
             userMapper.insert(user);
+        }else {
+            user.setLastLoginTime(LocalDateTime.now());
+            userMapper.updateById(user);
         }
         log.info("用户登录成功，ID：{}，角色：{}", user.getId(), user.getRole());
         String token = jwtUtils.createToken(user.getId(), user.getRole(),user.getNickname());

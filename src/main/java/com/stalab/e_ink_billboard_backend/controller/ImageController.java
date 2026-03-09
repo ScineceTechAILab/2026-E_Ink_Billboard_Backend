@@ -12,6 +12,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/image")
 public class ImageController {
@@ -100,15 +102,19 @@ public class ImageController {
     /**
      * 查询图片列表接口
      * header: Authorization: Bearer xxx
-     * query参数: current(页码), size(每页大小), userId(可选), auditStatus(可选: PENDING/APPROVED/REJECTED)
+     * query参数: current, size, fileName, sortOrder(asc/desc), owner(self/all), userIds(逗号分隔), auditStatus
      */
     @GetMapping("/list")
     public Response<PageResult<ImageVO>> list(
             @RequestHeader("Authorization") String token,
-            @RequestParam(value = "current", required = false) Long current,
-            @RequestParam(value = "size", required = false) Long size,
-            @RequestParam(value = "userId", required = false) Long userId,
+            @RequestParam(value = "current", required = false, defaultValue = "1") Long current,
+            @RequestParam(value = "size", required = false, defaultValue = "10") Long size,
+            @RequestParam(value = "fileName", required = false) String fileName,
+            @RequestParam(value = "sortOrder", required = false, defaultValue = "desc") String sortOrder,
+            @RequestParam(value = "owner", required = false) String owner,
+            @RequestParam(value = "userIds", required = false) List<Long> userIds,
             @RequestParam(value = "auditStatus", required = false) String auditStatusStr) {
+
         // 1. 校验 Token
         if (!jwtUtils.validateToken(token)) {
             return Response.<PageResult<ImageVO>>builder()
@@ -121,9 +127,23 @@ public class ImageController {
         Long currentUserId = jwtUtils.getUserId(token);
         String userRole = jwtUtils.getRole(token);
 
-        // 3. 权限控制：如果不是管理员，只能查看自己的图片
+        // 3. 权限与所有者控制
+        Long filterUserId = null;
+        boolean prioritizeSelf = false;
+
+        // 非管理员只能看自己
         if (!UserRole.ADMIN.getCode().equals(userRole)) {
-            userId = currentUserId;
+            filterUserId = currentUserId;
+            userIds = null; // 忽略前端传的 userIds
+        } else {
+            // 管理员逻辑
+            if ("self".equalsIgnoreCase(owner)) {
+                filterUserId = currentUserId;
+            } else if ("all".equalsIgnoreCase(owner)) {
+                // 查看全部，开启本人优先排序
+                prioritizeSelf = true;
+            }
+            // 如果 userIds 存在，则 filterUserId 保持 null（由 userIds 过滤），但 prioritizeSelf 逻辑依然有效（如果 owner=all）
         }
 
         // 4. 转换审核状态枚举
@@ -134,13 +154,17 @@ public class ImageController {
             } catch (IllegalArgumentException e) {
                 return Response.<PageResult<ImageVO>>builder()
                         .code(400)
-                        .info("审核状态参数无效，可选值: PENDING, APPROVED, REJECTED")
+                        .info("审核状态参数无效")
                         .build();
             }
         }
 
         // 5. 查询列表
-        PageResult<ImageVO> result = imageService.listImages(current, size, userId, auditStatus);
+        PageResult<ImageVO> result = imageService.listImages(
+                current, size, fileName, sortOrder,
+                filterUserId, userIds, auditStatus,
+                currentUserId, prioritizeSelf
+        );
 
         return Response.<PageResult<ImageVO>>builder()
                 .code(200)

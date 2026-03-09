@@ -6,6 +6,7 @@ import com.stalab.e_ink_billboard_backend.common.enums.ContentType;
 import com.stalab.e_ink_billboard_backend.common.enums.UserRole;
 import com.stalab.e_ink_billboard_backend.common.util.JwtUtils;
 import com.stalab.e_ink_billboard_backend.mapper.po.AuditLog;
+import com.stalab.e_ink_billboard_backend.mapper.po.User;
 import com.stalab.e_ink_billboard_backend.model.dto.AuditResultDTO;
 import com.stalab.e_ink_billboard_backend.model.vo.AuditItemVO;
 import com.stalab.e_ink_billboard_backend.model.vo.PageResult;
@@ -220,5 +221,33 @@ public class AdminController {
                     .info(e.getMessage())
                     .build();
         }
+    }
+
+    /**
+     * 获取用户列表（用于筛选）
+     * GET /api/admin/users
+     */
+    @GetMapping("/users")
+    public Response<List<User>> getUsers(@RequestHeader("Authorization") String token) {
+        if (!jwtUtils.validateToken(token)) {
+            return Response.<List<User>>builder()
+                    .code(401)
+                    .info("Token 无效")
+                    .build();
+        }
+
+        List<User> users = adminService.getUsers();
+        // 脱敏处理，只返回必要信息
+        users.forEach(u -> {
+            u.setWx_openid(null);
+            u.setFeishuOpenId(null);
+            u.setFeishuUnionId(null);
+        });
+
+        return Response.<List<User>>builder()
+                .code(200)
+                .info("查询成功")
+                .data(users)
+                .build();
     }
 }

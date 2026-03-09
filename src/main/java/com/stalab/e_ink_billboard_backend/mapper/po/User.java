@@ -29,6 +29,7 @@ public class User {
     private String feishuEmployeeNo;
     private String feishuMobile;
     private LocalDateTime createTime;
+    private LocalDateTime lastLoginTime;
 
     /**
      * 剩余免费推送次数

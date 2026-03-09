@@ -47,6 +47,12 @@ const routes: RouteRecordRaw[] = [
   name: 'PushImage',
   component: () => import('@/views/PushImageView.vue'),
   meta: { requiresAuth: true }
+},
+{
+  path: '/analytics',
+  name: 'Analytics',
+  component: () => import('@/views/AnalyticsView.vue'),
+  meta: { requiresAuth: true }
 }
 ]
 

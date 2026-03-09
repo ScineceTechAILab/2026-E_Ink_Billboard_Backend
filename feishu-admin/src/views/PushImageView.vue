@@ -30,29 +30,80 @@
           </div>
 
           <div v-else class="space-y-4">
-            <div class="flex items-center gap-3">
-              <el-select
-                v-model="imageAuditFilter"
-                placeholder="审核状态"
-                clearable
-                style="width: 150px"
-                @change="loadImages"
-              >
-                <el-option label="全部" value="" />
-                <el-option label="待审核" value="PENDING" />
-                <el-option label="已通过" value="APPROVED" />
-              </el-select>
-              <input
-                v-model="imageSearch"
-                type="text"
-                placeholder="搜索文件名..."
-                class="input-field flex-1"
-              />
+            <div class="flex flex-col gap-3">
+              <div class="flex items-center gap-3">
+                <!-- 所有者切换 -->
+                <el-radio-group v-model="imageQuery.owner" size="small" @change="handleOwnerChange">
+                  <el-radio-button label="self">我的</el-radio-button>
+                  <el-radio-button label="all">全部</el-radio-button>
+                </el-radio-group>
+                
+                <!-- 排序 -->
+                <el-dropdown @command="handleSortChange">
+                  <span class="el-dropdown-link cursor-pointer text-sm text-gray-600 flex items-center">
+                    {{ imageQuery.sortOrder === 'desc' ? '时间倒序' : '时间正序' }}
+                    <el-icon class="el-icon--right ml-1"><ArrowDown /></el-icon>
+                  </span>
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item command="desc">时间倒序</el-dropdown-item>
+                      <el-dropdown-item command="asc">时间正序</el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
+              </div>
+
+              <div class="flex items-center gap-3">
+                <el-select
+                  v-model="imageQuery.auditStatus"
+                  placeholder="审核状态"
+                  clearable
+                  style="width: 110px"
+                  @change="loadImages(true)"
+                >
+                  <el-option label="全部" value="" />
+                  <el-option label="待审核" value="PENDING" />
+                  <el-option label="已通过" value="APPROVED" />
+                </el-select>
+                
+                <el-select
+                  v-if="imageQuery.owner === 'all'"
+                  v-model="imageQuery.userIds"
+                  multiple
+                  collapse-tags
+                  collapse-tags-tooltip
+                  placeholder="用户"
+                  clearable
+                  filterable
+                  remote
+                  :remote-method="remoteUserMethod"
+                  :loading="userLoading"
+                  style="width: 120px"
+                  @change="loadImages(true)"
+                  no-match-text="无相关用户"
+                  no-data-text="无相关用户"
+                >
+                  <el-option
+                    v-for="user in filteredUserList"
+                    :key="user.id"
+                    :label="user.nickname"
+                    :value="user.id"
+                  />
+                </el-select>
+
+                <input
+                  v-model="imageQuery.fileName"
+                  @input="handleSearch"
+                  type="text"
+                  placeholder="搜索文件名..."
+                  class="input-field flex-1"
+                />
+              </div>
             </div>
 
-            <div class="grid grid-cols-2 gap-3 max-h-96 overflow-y-auto">
+            <div class="grid grid-cols-2 gap-3 max-h-96 overflow-y-auto" @scroll="handleScroll">
               <div
-                v-for="image in filteredImages"
+                v-for="image in images"
                 :key="image.id"
                 @click="selectImage(image)"
                 :class="[
@@ -70,7 +121,10 @@
                   />
                 </div>
                 <p class="text-sm text-gray-700 truncate">{{ image.fileName }}</p>
-                <p class="text-xs text-gray-500">{{ formatFileSize(image.fileSize) }}</p>
+                <p class="text-xs text-gray-500">
+                  {{ formatFileSize(image.fileSize) }}
+                  <span v-if="image.uploadUser" class="ml-1 text-gray-400">@{{ image.uploadUser }}</span>
+                </p>
                 <span
                   :class="[
                     'badge text-xs mt-1',
@@ -81,6 +135,12 @@
                 >
                   {{ image.auditStatus === 'APPROVED' ? '已通过' : '待审核' }}
                 </span>
+              </div>
+              <div v-if="imagesLoading && images.length > 0" class="col-span-2 text-center py-2 text-gray-400">
+                <el-icon class="is-loading"><Loading /></el-icon> 加载中...
+              </div>
+              <div v-if="!hasMoreImages && images.length > 0" class="col-span-2 text-center py-2 text-gray-400 text-xs">
+                没有更多图片了
               </div>
             </div>
           </div>
@@ -261,9 +321,19 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Loading } from '@element-plus/icons-vue'
-import { imageApi, deviceApi, pushApi } from '@/api'
-import type { ImageVO, DeviceVO } from '@/types'
+import { Loading, ArrowDown } from '@element-plus/icons-vue'
+import { imageApi, deviceApi, pushApi, adminApi } from '@/api'
+import type { ImageVO, DeviceVO, UserVO } from '@/types'
+import { debounce } from 'lodash' // 如果没有lodash，需手动防抖
+
+// 如果没有lodash，手动定义
+const debounceFn = (fn: Function, delay: number) => {
+  let timer: any = null
+  return (...args: any[]) => {
+    if (timer) clearTimeout(timer)
+    timer = setTimeout(() => fn(...args), delay)
+  }
+}
 
 const router = useRouter()
 
@@ -273,24 +343,27 @@ const pushing = ref(false)
 
 const images = ref<ImageVO[]>([])
 const devices = ref<DeviceVO[]>([])
+const userList = ref<UserVO[]>([])
+const filteredUserList = ref<UserVO[]>([])
+const userLoading = ref(false)
 
-const imageSearch = ref('')
-const imageAuditFilter = ref('')
+const imageQuery = reactive({
+  current: 1,
+  size: 20,
+  fileName: '',
+  auditStatus: '',
+  owner: 'self',
+  sortOrder: 'desc',
+  userIds: [] as number[]
+})
+const hasMoreImages = ref(true)
+
 const deviceSearch = ref('')
 const deviceStatusFilter = ref('')
 
 const selectedImage = ref<ImageVO | null>(null)
 const selectedDeviceIds = ref<number[]>([])
 const pushResults = ref<Array<{ deviceId: number; deviceName: string; success: boolean; error?: string }>>([])
-
-const filteredImages = computed(() => {
-  return images.value.filter((image) => {
-    const matchesSearch =
-      !imageSearch.value || image.fileName.toLowerCase().includes(imageSearch.value.toLowerCase())
-    const matchesStatus = !imageAuditFilter.value || image.auditStatus === imageAuditFilter.value
-    return matchesSearch && matchesStatus
-  })
-})
 
 const filteredDevices = computed(() => {
   return devices.value.filter((device) => {
@@ -319,18 +392,95 @@ const getDeviceById = (deviceId: number): DeviceVO | undefined => {
   return devices.value.find((d) => d.id === deviceId)
 }
 
-const loadImages = async () => {
+const loadImages = async (reset = false) => {
+  if (reset) {
+    imageQuery.current = 1
+    images.value = []
+    hasMoreImages.value = true
+  }
+  
+  if (!hasMoreImages.value && !reset) return
+
   imagesLoading.value = true
   try {
-    const res = await imageApi.list({ auditStatus: imageAuditFilter.value || undefined })
+    const res = await imageApi.list({
+      current: imageQuery.current,
+      size: imageQuery.size,
+      fileName: imageQuery.fileName,
+      auditStatus: imageQuery.auditStatus || undefined,
+      owner: imageQuery.owner as 'self' | 'all',
+      sortOrder: imageQuery.sortOrder as 'asc' | 'desc',
+      userIds: imageQuery.owner === 'self' ? undefined : imageQuery.userIds
+    })
     if (res.code === 200) {
-      images.value = res.data.records
+      const newImages = res.data.records
+      if (reset) {
+        images.value = newImages
+      } else {
+        images.value.push(...newImages)
+      }
+      
+      if (images.value.length >= res.data.total) {
+        hasMoreImages.value = false
+      } else {
+        imageQuery.current++
+      }
     }
   } catch (error) {
     console.error('Load images failed:', error)
     ElMessage.error('加载图片列表失败')
   } finally {
     imagesLoading.value = false
+  }
+}
+
+const loadUsers = async () => {
+  try {
+    const res = await adminApi.getUsers()
+    if (res.code === 200) {
+      userList.value = res.data
+      filteredUserList.value = userList.value.slice(0, 10)
+    }
+  } catch (error) {
+    console.error('Load users failed:', error)
+  }
+}
+
+const remoteUserMethod = (query: string) => {
+  if (query) {
+    userLoading.value = true
+    setTimeout(() => {
+      userLoading.value = false
+      filteredUserList.value = userList.value.filter(item => {
+        const name = item.nickname || ''
+        return name.toLowerCase().includes(query.toLowerCase())
+      }).slice(0, 10)
+    }, 300)
+  } else {
+    filteredUserList.value = userList.value.slice(0, 10)
+  }
+}
+
+const handleSearch = debounceFn(() => {
+  loadImages(true)
+}, 300)
+
+const handleOwnerChange = () => {
+  imageQuery.userIds = []
+  loadImages(true)
+}
+
+const handleSortChange = (command: string) => {
+  imageQuery.sortOrder = command
+  loadImages(true)
+}
+
+const handleScroll = (e: Event) => {
+  const target = e.target as HTMLElement
+  if (target.scrollTop + target.clientHeight >= target.scrollHeight - 20) {
+    if (hasMoreImages.value && !imagesLoading.value) {
+      loadImages()
+    }
   }
 }
 
@@ -434,7 +584,8 @@ const goBack = () => {
 }
 
 onMounted(() => {
-  loadImages()
+  loadImages(true)
   loadDevices()
+  loadUsers()
 })
 </script>

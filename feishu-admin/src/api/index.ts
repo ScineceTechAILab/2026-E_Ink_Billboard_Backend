@@ -13,7 +13,10 @@ import type {
   PushImageDTO,
   PushBatchDTO,
   ContentPushVO,
-  NetworkConfigDTO
+  NetworkConfigDTO,
+  UserActivityVO,
+  DeviceStatusVO,
+  UserVO
 } from '@/types'
 
 export const authApi = {
@@ -55,9 +58,17 @@ export const imageApi = {
   list(params?: {
     current?: number
     size?: number
+    fileName?: string
+    sortOrder?: 'asc' | 'desc'
+    owner?: 'self' | 'all'
+    userIds?: number[]
     auditStatus?: string
   }): Promise<ApiResponse<PageResult<ImageVO>>> {
-    return request.get('/api/image/list', { params })
+    const queryParams: any = { ...params }
+    if (params?.userIds) {
+      queryParams.userIds = params.userIds.join(',')
+    }
+    return request.get('/api/image/list', { params: queryParams })
   }
 }
 
@@ -145,5 +156,32 @@ export const adminApi = {
     return request.get('/api/admin/audit/history', {
       params: { contentId, contentType }
     })
+  },
+
+  getUsers(): Promise<ApiResponse<UserVO[]>> {
+    return request.get('/api/admin/users')
+  }
+}
+
+export const analyticsApi = {
+  /**
+   * 获取用户活跃度数据
+   */
+  getUserActivity(params: {
+    startDate: string
+    endDate: string
+    granularity: 'day' | 'week' | 'month'
+  }): Promise<ApiResponse<UserActivityVO>> {
+    return request.get('/api/admin/analytics/user-activity', { params })
+  },
+
+  /**
+   * 获取设备状态统计
+   */
+  getDeviceStatus(params?: {
+    startDate?: string
+    endDate?: string
+  }): Promise<ApiResponse<DeviceStatusVO>> {
+    return request.get('/api/admin/analytics/device-status', { params })
   }
 }

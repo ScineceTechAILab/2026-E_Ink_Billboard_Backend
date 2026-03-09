@@ -312,4 +312,11 @@ public class AdminService {
                         .orderByDesc(AuditLog::getCreateTime)
         );
     }
+
+    /**
+     * 获取所有用户列表（用于筛选）
+     */
+    public List<User> getUsers() {
+        return userMapper.selectList(null);
+    }
 }

@@ -60,6 +60,11 @@ public class ImageVO {
     private String auditReason;
 
     /**
+     * 上传者昵称
+     */
+    private String uploadUser;
+
+    /**
      * 创建时间
      */
     private LocalDateTime createTime;
