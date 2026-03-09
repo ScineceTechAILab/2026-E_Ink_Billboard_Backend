@@ -1,12 +1,26 @@
 package com.stalab.e_ink_billboard_backend.config;
 
+import com.stalab.e_ink_billboard_backend.interceptor.UserActivityInterceptor;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.PathMatchConfigurer;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 @Configuration
+@RequiredArgsConstructor
 public class WebConfig implements WebMvcConfigurer {
+
+    private final UserActivityInterceptor userActivityInterceptor;
+
+    @Override
+    public void addInterceptors(InterceptorRegistry registry) {
+        // 注册用户活跃度拦截器，拦截所有 API 请求
+        registry.addInterceptor(userActivityInterceptor)
+                .addPathPatterns("/api/**")
+                .excludePathPatterns("/api/auth/**"); // 排除登录接口，因为登录接口本身会更新时间
+    }
 
     @Override
     public void addCorsMappings(CorsRegistry registry) {

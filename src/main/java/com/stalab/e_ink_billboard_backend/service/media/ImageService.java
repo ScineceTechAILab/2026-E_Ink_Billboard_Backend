@@ -80,7 +80,7 @@ public class ImageService {
             if (!safe) {
                 log.warn("图片审核不通过，转入人工复审 UserId: {}", userId);
                 initialStatus = AuditStatus.PENDING;
-                auditReason = "WeChat Check Failed";
+                auditReason = "微信自动审核未通过，等待人工复审";
             } else {
                 log.info("图片内容审核通过");
                 initialStatus = AuditStatus.APPROVED;
@@ -198,13 +198,14 @@ public class ImageService {
 
     /**
      * 查询图片列表（分页）
-     * @param current 当前页码（从1开始）
-     * @param size 每页大小
-     * @param userId 用户ID（可选，如果提供则只查询该用户的图片）
-     * @param auditStatus 审核状态（可选）
-     * @return 分页结果
+     * 支持复杂筛选和排序
      */
-    public PageResult<ImageVO> listImages(Long current, Long size, Long userId, AuditStatus auditStatus) {
+    public PageResult<ImageVO> listImages(
+            Long current, Long size,
+            String fileName, String sortOrder,
+            Long userId, List<Long> userIds, AuditStatus auditStatus,
+            Long currentUserId, boolean prioritizeSelf) {
+
         // 默认值
         if (current == null || current < 1) {
             current = 1L;
@@ -219,22 +220,73 @@ public class ImageService {
 
         // 构建查询条件
         LambdaQueryWrapper<Image> queryWrapper = new LambdaQueryWrapper<>();
+
+        // 文件名模糊搜索
+        if (StrUtil.isNotBlank(fileName)) {
+            queryWrapper.like(Image::getFileName, fileName);
+        }
+
+        // 指定用户（单个）
         if (userId != null) {
             queryWrapper.eq(Image::getUserId, userId);
         }
+
+        // 指定用户（多个）
+        if (userIds != null && !userIds.isEmpty()) {
+            queryWrapper.in(Image::getUserId, userIds);
+        }
+
         if (auditStatus != null) {
             queryWrapper.eq(Image::getAuditStatus, auditStatus);
         }
-        // 按创建时间倒序
-        queryWrapper.orderByDesc(Image::getCreateTime);
+
+        // 排序逻辑
+        if (prioritizeSelf && currentUserId != null) {
+            // 本人优先，然后按时间倒序
+            // 使用 last 拼接 SQL 实现自定义排序
+            // 注意：这会覆盖掉之前的 orderBy，所以必须放在最后
+            // 安全性：currentUserId 是 Long 类型，无注入风险
+            queryWrapper.last(String.format("ORDER BY CASE WHEN user_id = %d THEN 0 ELSE 1 END, create_time DESC", currentUserId));
+        } else {
+            // 普通排序
+            if ("asc".equalsIgnoreCase(sortOrder)) {
+                queryWrapper.orderByAsc(Image::getCreateTime);
+            } else {
+                queryWrapper.orderByDesc(Image::getCreateTime);
+            }
+        }
 
         // 分页查询
         Page<Image> page = new Page<>(current, size);
         IPage<Image> pageResult = imageMapper.selectPage(page, queryWrapper);
 
+        // 批量查询用户信息以填充 uploadUser
+        // 获取所有涉及的 userId
+        List<Long> allUserIds = pageResult.getRecords().stream()
+                .map(Image::getUserId)
+                .distinct()
+                .collect(Collectors.toList());
+
+        // 查询用户昵称 Map
+        java.util.Map<Long, String> userMap = new java.util.HashMap<>();
+        if (!allUserIds.isEmpty()) {
+            List<User> users = userMapper.selectBatchIds(allUserIds);
+            userMap = users.stream()
+                    .collect(Collectors.toMap(
+                            User::getId,
+                            u -> u.getNickname() == null ? "未知用户" : u.getNickname(),
+                            (v1, v2) -> v1
+                    ));
+        }
+
         // 转换为VO
+        java.util.Map<Long, String> finalUserMap = userMap;
         List<ImageVO> voList = pageResult.getRecords().stream()
-                .map(this::convertToVO)
+                .map(image -> {
+                    ImageVO vo = convertToVO(image);
+                    vo.setUploadUser(finalUserMap.getOrDefault(image.getUserId(), "未知用户"));
+                    return vo;
+                })
                 .collect(Collectors.toList());
 
         // 构建分页结果

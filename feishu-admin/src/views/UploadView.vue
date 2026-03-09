@@ -15,6 +15,19 @@
             返回
           </button>
         </div>
+
+        <!-- 分页 -->
+        <div class="flex justify-center mt-6" v-if="pagination.total > 0">
+          <el-pagination
+            v-model:current-page="pagination.current"
+            v-model:page-size="pagination.size"
+            :total="pagination.total"
+            :page-sizes="[10, 20, 50, 100]"
+            layout="total, sizes, prev, pager, next, jumper"
+            @size-change="handlePageChange"
+            @current-change="handlePageChange"
+          />
+        </div>
       </div>
 
       <div class="card animate-slide-up" style="animation-delay: 0.1s">
@@ -119,14 +132,76 @@
         </div>
       </div>
 
-      <div v-if="uploadedImages.length > 0" class="card animate-slide-up" style="animation-delay: 0.4s">
+      <div class="card animate-slide-up" style="animation-delay: 0.4s">
         <div class="flex items-center justify-between mb-4">
           <h2 class="text-lg font-semibold text-gray-800">
             <span class="mr-2">✅</span>
             已上传图片
           </h2>
         </div>
-        <div class="columns-1 sm:columns-2 md:columns-3 lg:columns-4 gap-4 space-y-4">
+
+        <!-- 查询区块 -->
+        <div class="mb-6 p-4 bg-gray-50 rounded-xl space-y-4">
+          <div class="flex flex-wrap items-center gap-4">
+            <!-- 搜索框 -->
+            <div class="flex-1 min-w-[200px]">
+              <el-input
+                v-model="searchForm.fileName"
+                placeholder="搜索图片名称..."
+                clearable
+                :prefix-icon="Search"
+                @input="handleSearch"
+              />
+            </div>
+            
+            <!-- 用户筛选 -->
+            <div class="w-[200px]">
+              <el-select
+                v-model="searchForm.userIds"
+                multiple
+                collapse-tags
+                collapse-tags-tooltip
+                placeholder="筛选上传用户"
+                clearable
+                filterable
+                remote
+                :remote-method="remoteUserMethod"
+                :loading="userLoading"
+                @change="handleSearch"
+                no-match-text="无相关用户"
+                no-data-text="无相关用户"
+              >
+                <el-option
+                  v-for="user in filteredUserList"
+                  :key="user.id"
+                  :label="user.nickname"
+                  :value="user.id"
+                />
+              </el-select>
+            </div>
+
+            <!-- 排序 -->
+            <el-button-group>
+              <el-button 
+                :type="searchForm.sortOrder === 'desc' ? 'primary' : 'default'" 
+                @click="toggleSort('desc')"
+              >
+                时间倒序
+              </el-button>
+              <el-button 
+                :type="searchForm.sortOrder === 'asc' ? 'primary' : 'default'" 
+                @click="toggleSort('asc')"
+              >
+                时间正序
+              </el-button>
+            </el-button-group>
+
+            <!-- 重置 -->
+            <el-button :icon="Refresh" @click="handleReset">重置</el-button>
+          </div>
+        </div>
+
+        <div v-if="uploadedImages.length > 0" class="columns-1 sm:columns-2 md:columns-3 lg:columns-4 gap-4 space-y-4">
           <div
             v-for="image in uploadedImages"
             :key="image.id"
@@ -176,6 +251,7 @@
             </div>
           </div>
         </div>
+        <el-empty v-else description="暂无图片" />
       </div>
 
       <el-image-viewer
@@ -192,10 +268,10 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Close, Check, Refresh, View, DocumentCopy, Delete } from '@element-plus/icons-vue'
+import { Close, Check, Refresh, View, DocumentCopy, Delete, Search } from '@element-plus/icons-vue'
 import imageCompression from 'browser-image-compression'
-import { imageApi } from '@/api'
-import type { UploadingFile,  ImageVO } from '@/types'
+import { imageApi, adminApi } from '@/api'
+import type { UploadingFile, ImageVO, UserVO } from '@/types'
 
 const router = useRouter()
 const dropZoneRef = ref<HTMLDivElement>()
@@ -208,6 +284,22 @@ const previewUrlList = ref<string[]>([])
 const previewIndex = ref(0)
 const cancelControllers = ref<Map<string, AbortController>>(new Map())
 const retryCounts = ref<Map<string, number>>(new Map())
+
+// 查询相关
+const searchForm = ref({
+  fileName: '',
+  userIds: [] as number[],
+  sortOrder: 'desc' as 'asc' | 'desc'
+})
+const userList = ref<UserVO[]>([])
+const filteredUserList = ref<UserVO[]>([])
+const userLoading = ref(false)
+const pagination = ref({
+  current: 1,
+  size: 20,
+  total: 0
+})
+let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
 const MAX_FILE_SIZE = 5 * 1024 * 1024
@@ -336,7 +428,9 @@ const uploadFile = async (uploadingFile: UploadingFile) => {
         auditReason: null,
         createTime: new Date().toISOString()
       }
-      uploadedImages.value.unshift(imageVO)
+      // uploadedImages.value.unshift(imageVO)
+      // 重新加载列表以保持一致性
+      handleSearch()
 
       ElMessage.success(res.data.auditMessage || '上传成功')
     }
@@ -455,11 +549,73 @@ const goBack = () => {
   router.back()
 }
 
+const loadUsers = async () => {
+  try {
+    const res = await adminApi.getUsers()
+    if (res.code === 200) {
+      userList.value = res.data
+      filteredUserList.value = userList.value.slice(0, 10)
+    }
+  } catch (error) {
+    console.error('Load users failed:', error)
+  }
+}
+
+const remoteUserMethod = (query: string) => {
+  if (query) {
+    userLoading.value = true
+    setTimeout(() => {
+      userLoading.value = false
+      filteredUserList.value = userList.value.filter(item => {
+        const name = item.nickname || ''
+        return name.toLowerCase().includes(query.toLowerCase())
+      }).slice(0, 10)
+    }, 300)
+  } else {
+    filteredUserList.value = userList.value.slice(0, 10)
+  }
+}
+
+const handleSearch = () => {
+  if (debounceTimer) clearTimeout(debounceTimer)
+  debounceTimer = setTimeout(() => {
+    pagination.value.current = 1
+    loadUploadedImages()
+  }, 300)
+}
+
+const toggleSort = (order: 'asc' | 'desc') => {
+  if (searchForm.value.sortOrder === order) return
+  searchForm.value.sortOrder = order
+  handleSearch() // 立即触发，不需要防抖
+}
+
+const handleReset = () => {
+  searchForm.value = {
+    fileName: '',
+    userIds: [],
+    sortOrder: 'desc'
+  }
+  handleSearch()
+}
+
+const handlePageChange = () => {
+  loadUploadedImages()
+}
+
 const loadUploadedImages = async () => {
   try {
-    const res = await imageApi.list({ auditStatus: 'APPROVED', size: 20 })
+    const res = await imageApi.list({
+      auditStatus: 'APPROVED',
+      size: pagination.value.size,
+      current: pagination.value.current,
+      fileName: searchForm.value.fileName,
+      userIds: searchForm.value.userIds,
+      sortOrder: searchForm.value.sortOrder
+    })
     if (res.code === 200) {
       uploadedImages.value = res.data.records
+      pagination.value.total = res.data.total
     }
   } catch (error) {
     console.error('Load images failed:', error)
@@ -469,6 +625,7 @@ const loadUploadedImages = async () => {
 onMounted(() => {
   document.addEventListener('paste', handlePaste)
   loadUploadedImages()
+  loadUsers()
 })
 
 onUnmounted(() => {

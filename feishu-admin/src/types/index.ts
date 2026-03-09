@@ -27,6 +27,13 @@ export interface ImageVO {
   auditStatus: 'PENDING' | 'APPROVED' | 'REJECTED'
   auditReason: string | null
   createTime: string
+  uploadUser?: string
+}
+
+export interface UserVO {
+  id: number
+  nickname: string
+  role?: string
 }
 
 export interface PageResult<T> {
@@ -146,4 +153,31 @@ export interface ContentPushVO {
 export interface NetworkConfigDTO {
   ssid: string
   password: string
+}
+
+// ==================== 数据统计相关类型 ====================
+
+export interface UserActivityItemVO {
+  date: string
+  activeUsers: number
+  activeUserNames?: string[]
+  yearOnYear?: number
+  monthOnMonth?: number
+}
+
+export interface UserActivityVO {
+  granularity: 'day' | 'week' | 'month'
+  items: UserActivityItemVO[]
+  totalActiveUsers: number
+  avgDailyActiveUsers: number
+}
+
+export interface DeviceStatusVO {
+  onlineCount: number
+  offlineCount: number
+  abnormalCount: number
+  totalCount: number
+  onlineRate: number
+  offlineRate: number
+  abnormalRate: number
 }

@@ -16,6 +16,22 @@
         </div>
       </div>
 
+      <div class="card animate-slide-up" style="animation-delay: 0.05s">
+        <div class="flex items-start gap-4">
+          <div class="text-4xl">💬</div>
+          <div class="flex-1">
+            <div v-if="hitokotoLoading" class="text-gray-400 italic">加载中...</div>
+            <div v-else>
+              <p class="text-lg text-gray-700 italic mb-2">「{{ hitokoto.hitokoto }}」</p>
+              <p class="text-sm text-gray-500 text-right">—— {{ hitokoto.from }}</p>
+            </div>
+          </div>
+          <button @click="loadHitokoto" class="text-gray-400 hover:text-gray-600 transition-colors" title="换一条">
+            <i class="fas fa-sync-alt"></i>
+          </button>
+        </div>
+      </div>
+
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div class="card animate-slide-up" style="animation-delay: 0.1s">
           <div class="flex items-center">
@@ -86,6 +102,13 @@
               <div>上传图片</div>
             </button>
             <button
+              @click="goToPushImage"
+              class="btn-primary text-center py-4 bg-gradient-to-r from-blue-500 to-cyan-500"
+            >
+              <div class="text-3xl mb-2">📤</div>
+              <div>图片推送</div>
+            </button>
+            <button
               @click="goToDevices"
               class="btn-primary text-center py-4 bg-gradient-to-r from-purple-500 to-indigo-500"
             >
@@ -103,11 +126,11 @@
               </div>
             </button>
             <button
-              @click="goToPushImage"
-              class="btn-primary text-center py-4 bg-gradient-to-r from-blue-500 to-cyan-500"
+              @click="goToAnalytics"
+              class="btn-primary text-center py-4 bg-gradient-to-r from-emerald-500 to-teal-500 col-span-2"
             >
-              <div class="text-3xl mb-2">📤</div>
-              <div>图片推送</div>
+              <div class="text-3xl mb-2">📊</div>
+              <div>数据统计</div>
             </button>
           </div>
         </div>
@@ -166,6 +189,12 @@ const stats = ref({
   approved: 0
 })
 
+const hitokoto = ref({
+  hitokoto: '',
+  from: ''
+})
+const hitokotoLoading = ref(false)
+
 const devices = ref<DeviceVO[]>([])
 
 const totalDevices = computed(() => devices.value.length)
@@ -189,6 +218,29 @@ const loadDevices = async () => {
     }
   } catch (error) {
     console.error('Load devices failed:', error)
+  }
+}
+
+/**
+ * 加载随机名人名言
+ */
+const loadHitokoto = async () => {
+  hitokotoLoading.value = true
+  try {
+    const res = await fetch('https://v1.hitokoto.cn/?encode=json')
+    const data = await res.json()
+    hitokoto.value = {
+      hitokoto: data.hitokoto,
+      from: data.from
+    }
+  } catch (error) {
+    console.error('Load hitokoto failed:', error)
+    hitokoto.value = {
+      hitokoto: '生活明朗，万物可爱。',
+      from: '佚名'
+    }
+  } finally {
+    hitokotoLoading.value = false
   }
 }
 
@@ -219,8 +271,13 @@ const goToPushImage = () => {
   router.push('/push-image')
 }
 
+const goToAnalytics = () => {
+  router.push('/analytics')
+}
+
 onMounted(() => {
   loadStats()
   loadDevices()
+  loadHitokoto()
 })
 </script>
