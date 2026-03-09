@@ -136,31 +136,47 @@
         </div>
 
         <div class="card animate-slide-up" style="animation-delay: 0.6s">
-          <h2 class="text-lg font-semibold text-gray-800 mb-4">
-            <span class="mr-2">📋</span>
-            功能说明
-          </h2>
-          <div class="space-y-3">
-            <div class="flex items-start gap-3 p-3 bg-amber-50 rounded-xl">
-              <span class="text-xl">1️⃣</span>
-              <div>
-                <p class="font-medium text-gray-800">登录系统</p>
-                <p class="text-sm text-gray-500">使用飞书授权登录，获取管理员权限</p>
-              </div>
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold text-gray-800">
+              <span class="mr-2">🚩</span>
+              公告栏
+            </h2>
+            <button @click="isEditing = !isEditing" class="btn-secondary text-sm py-1 px-3">
+              <i v-if="!isEditing" class="fas fa-edit mr-1"></i>
+              <i v-else class="fas fa-times mr-1"></i>
+              {{ isEditing ? '取消编辑' : '编辑公告' }}
+            </button>
+          </div>
+          
+          <div v-if="!isEditing" class="space-y-3">
+            <div v-if="!announcement" class="text-center py-8 text-gray-400">
+              <i class="fas fa-sticky-note text-4xl mb-2"></i>
+              <p>暂无公告</p>
             </div>
-            <div class="flex items-start gap-3 p-3 bg-orange-50 rounded-xl">
-              <span class="text-xl">2️⃣</span>
-              <div>
-                <p class="font-medium text-gray-800">管理设备</p>
-                <p class="text-sm text-gray-500">添加、编辑、删除墨水屏设备</p>
-              </div>
+            <div v-else class="prose prose-sm max-w-none">
+              <div v-html="announcement" class="text-gray-700 whitespace-pre-wrap"></div>
             </div>
-            <div class="flex items-start gap-3 p-3 bg-green-50 rounded-xl">
-              <span class="text-xl">3️⃣</span>
-              <div>
-                <p class="font-medium text-gray-800">上传内容</p>
-                <p class="text-sm text-gray-500">上传图片，自动审核处理</p>
-              </div>
+            <div v-if="announcement && updatedAt" class="text-xs text-gray-400 text-right pt-2 border-t border-gray-100">
+              最后更新：{{ formatDate(updatedAt) }}
+            </div>
+          </div>
+          
+          <div v-else class="space-y-3">
+            <el-input
+              v-model="editableAnnouncement"
+              type="textarea"
+              :rows="8"
+              placeholder="在此输入公告内容，支持HTML标签，如&lt;b&gt;加粗&lt;/b&gt;、&lt;i&gt;斜体&lt;/i&gt;、&lt;br&gt;换行等"
+              class="w-full"
+            />
+            <div class="flex justify-end gap-2">
+              <button @click="cancelEdit" class="btn-secondary">
+                取消
+              </button>
+              <button @click="saveAnnouncement" class="btn-primary">
+                <i class="fas fa-save mr-2"></i>
+                保存公告
+              </button>
             </div>
           </div>
         </div>
@@ -172,7 +188,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessageBox } from 'element-plus'
+import { ElMessageBox, ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { adminApi, deviceApi } from '@/api'
 import type { DeviceVO } from '@/types'
@@ -194,6 +210,14 @@ const hitokoto = ref({
   from: ''
 })
 const hitokotoLoading = ref(false)
+
+const announcement = ref('')
+const editableAnnouncement = ref('')
+const isEditing = ref(false)
+const updatedAt = ref('')
+
+const ANNOUNCEMENT_KEY = 'dashboard_announcement'
+const ANNOUNCEMENT_UPDATED_AT_KEY = 'dashboard_announcement_updated_at'
 
 const devices = ref<DeviceVO[]>([])
 
@@ -244,6 +268,68 @@ const loadHitokoto = async () => {
   }
 }
 
+/**
+ * 从本地存储加载公告
+ */
+const loadAnnouncement = () => {
+  try {
+    const savedAnnouncement = localStorage.getItem(ANNOUNCEMENT_KEY)
+    const savedUpdatedAt = localStorage.getItem(ANNOUNCEMENT_UPDATED_AT_KEY)
+    if (savedAnnouncement) {
+      announcement.value = savedAnnouncement
+    }
+    if (savedUpdatedAt) {
+      updatedAt.value = savedUpdatedAt
+    }
+  } catch (error) {
+    console.error('Load announcement failed:', error)
+  }
+}
+
+/**
+ * 保存公告到本地存储
+ */
+const saveAnnouncement = () => {
+  try {
+    const now = new Date().toISOString()
+    localStorage.setItem(ANNOUNCEMENT_KEY, editableAnnouncement.value)
+    localStorage.setItem(ANNOUNCEMENT_UPDATED_AT_KEY, now)
+    announcement.value = editableAnnouncement.value
+    updatedAt.value = now
+    isEditing.value = false
+    ElMessage.success('公告保存成功！')
+  } catch (error) {
+    console.error('Save announcement failed:', error)
+    ElMessage.error('公告保存失败，请重试')
+  }
+}
+
+/**
+ * 取消编辑公告
+ */
+const cancelEdit = () => {
+  editableAnnouncement.value = announcement.value
+  isEditing.value = false
+}
+
+/**
+ * 格式化日期显示
+ */
+const formatDate = (dateString: string): string => {
+  try {
+    const date = new Date(dateString)
+    return date.toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  } catch (error) {
+    return dateString
+  }
+}
+
 const logout = () => {
   ElMessageBox.confirm('确定要退出登录吗？', '提示', {
     confirmButtonText: '确定',
@@ -279,5 +365,6 @@ onMounted(() => {
   loadStats()
   loadDevices()
   loadHitokoto()
+  loadAnnouncement()
 })
 </script>
