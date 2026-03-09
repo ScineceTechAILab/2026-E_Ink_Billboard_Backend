@@ -16,7 +16,8 @@ import type {
   NetworkConfigDTO,
   UserActivityVO,
   DeviceStatusVO,
-  UserVO
+  UserVO,
+  AnnouncementVO
 } from '@/types'
 
 export const authApi = {
@@ -160,6 +161,14 @@ export const adminApi = {
 
   getUsers(): Promise<ApiResponse<UserVO[]>> {
     return request.get('/api/admin/users')
+  },
+
+  getAnnouncement(): Promise<ApiResponse<AnnouncementVO>> {
+    return request.get('/api/admin/announcement')
+  },
+
+  saveAnnouncement(content: string): Promise<ApiResponse<null>> {
+    return request.post('/api/admin/announcement', { content })
   }
 }
 

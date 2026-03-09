@@ -8,10 +8,12 @@ import com.stalab.e_ink_billboard_backend.common.util.JwtUtils;
 import com.stalab.e_ink_billboard_backend.mapper.po.AuditLog;
 import com.stalab.e_ink_billboard_backend.mapper.po.User;
 import com.stalab.e_ink_billboard_backend.model.dto.AuditResultDTO;
+import com.stalab.e_ink_billboard_backend.model.vo.AnnouncementVO;
 import com.stalab.e_ink_billboard_backend.model.vo.AuditItemVO;
 import com.stalab.e_ink_billboard_backend.model.vo.PageResult;
 import com.stalab.e_ink_billboard_backend.model.vo.StatsVO;
 import com.stalab.e_ink_billboard_backend.service.AdminService;
+import com.stalab.e_ink_billboard_backend.service.AnnouncementService;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
@@ -28,10 +30,12 @@ import java.util.Map;
 public class AdminController {
 
     private final AdminService adminService;
+    private final AnnouncementService announcementService;
     private final JwtUtils jwtUtils;
 
-    public AdminController(AdminService adminService, JwtUtils jwtUtils) {
+    public AdminController(AdminService adminService, AnnouncementService announcementService, JwtUtils jwtUtils) {
         this.adminService = adminService;
+        this.announcementService = announcementService;
         this.jwtUtils = jwtUtils;
     }
 
@@ -249,5 +253,64 @@ public class AdminController {
                 .info("查询成功")
                 .data(users)
                 .build();
+    }
+
+    /**
+     * 获取公告
+     * GET /api/admin/announcement
+     */
+    @GetMapping("/announcement")
+    public Response<AnnouncementVO> getAnnouncement(@RequestHeader("Authorization") String token) {
+        if (!jwtUtils.validateToken(token)) {
+            return Response.<AnnouncementVO>builder()
+                    .code(401)
+                    .info("Token 无效")
+                    .build();
+        }
+
+        AnnouncementVO announcement = announcementService.getAnnouncement();
+        return Response.<AnnouncementVO>builder()
+                .code(200)
+                .info("查询成功")
+                .data(announcement)
+                .build();
+    }
+
+    /**
+     * 保存公告
+     * POST /api/admin/announcement
+     */
+    @PostMapping("/announcement")
+    public Response<Void> saveAnnouncement(@RequestBody Map<String, String> params,
+                                            @RequestHeader("Authorization") String token) {
+        if (!jwtUtils.validateToken(token)) {
+            return Response.<Void>builder()
+                    .code(401)
+                    .info("Token 无效")
+                    .build();
+        }
+
+        String userRole = jwtUtils.getRole(token);
+        if (!UserRole.ADMIN.getCode().equals(userRole)) {
+            return Response.<Void>builder()
+                    .code(403)
+                    .info("无权执行此操作，需要管理员权限")
+                    .build();
+        }
+
+        try {
+            String content = params.get("content");
+            announcementService.saveAnnouncement(content);
+            return Response.<Void>builder()
+                    .code(200)
+                    .info("保存成功")
+                    .build();
+        } catch (Exception e) {
+            log.error("Save announcement error", e);
+            return Response.<Void>builder()
+                    .code(400)
+                    .info(e.getMessage())
+                    .build();
+        }
     }
 }
