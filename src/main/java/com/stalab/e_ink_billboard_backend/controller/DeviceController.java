@@ -8,7 +8,7 @@ import com.stalab.e_ink_billboard_backend.model.dto.DeleteQueueItemsDTO;
 import com.stalab.e_ink_billboard_backend.model.dto.DeviceDTO;
 import com.stalab.e_ink_billboard_backend.model.vo.DeviceVO;
 import com.stalab.e_ink_billboard_backend.model.vo.QueueItemVO;
-import com.stalab.e_ink_billboard_backend.service.DeviceService;
+import com.stalab.e_ink_billboard_backend.service.device.DeviceService;
 import com.stalab.e_ink_billboard_backend.service.push.PlayQueueService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
