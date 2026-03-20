@@ -1,4 +1,4 @@
-package com.stalab.e_ink_billboard_backend.service;
+package com.stalab.e_ink_billboard_backend.service.admin;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.stalab.e_ink_billboard_backend.model.vo.AnnouncementVO;

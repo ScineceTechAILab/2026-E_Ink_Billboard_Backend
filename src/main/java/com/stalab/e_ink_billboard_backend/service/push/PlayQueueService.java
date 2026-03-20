@@ -15,7 +15,7 @@ import com.stalab.e_ink_billboard_backend.mapper.po.User;
 import com.stalab.e_ink_billboard_backend.mapper.po.Video;
 import com.stalab.e_ink_billboard_backend.model.dto.MqttCommandMessage;
 import com.stalab.e_ink_billboard_backend.model.vo.QueueItemVO;
-import com.stalab.e_ink_billboard_backend.service.DeviceService;
+import com.stalab.e_ink_billboard_backend.service.device.DeviceService;
 import com.stalab.e_ink_billboard_backend.service.mqtt.MqttService;
 import com.stalab.e_ink_billboard_backend.service.storage.MinioService;
 import lombok.Getter;

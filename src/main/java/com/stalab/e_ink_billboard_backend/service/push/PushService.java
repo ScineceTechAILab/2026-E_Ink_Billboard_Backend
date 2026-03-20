@@ -14,7 +14,7 @@ import com.stalab.e_ink_billboard_backend.mapper.po.User;
 import com.stalab.e_ink_billboard_backend.mapper.po.Video;
 import com.stalab.e_ink_billboard_backend.model.vo.ContentPushVO;
 import com.stalab.e_ink_billboard_backend.model.vo.PageResult;
-import com.stalab.e_ink_billboard_backend.service.DeviceService;
+import com.stalab.e_ink_billboard_backend.service.device.DeviceService;
 import com.stalab.e_ink_billboard_backend.service.wx.VerificationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
