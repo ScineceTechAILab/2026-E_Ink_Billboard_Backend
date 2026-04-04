@@ -66,9 +66,6 @@ public class ImageService {
             throw new BusinessException("用户不存在");
         }
 
-        // 0. 检查用户权限
-        checkUserQuota(user);
-
         boolean isAdmin = UserRole.ADMIN.getCode().equals(user.getRole());
         AuditStatus initialStatus = AuditStatus.APPROVED;
         String auditReason = null;
@@ -96,6 +93,8 @@ public class ImageService {
 
             if (existImage != null) {
                 log.info("图片秒传触发: {}", md5);
+                // 0. 检查并增加用户配额（在确认文件存在后执行）
+                checkAndIncrementQuota(user);
                 // 秒传也视为审核通过（因为上面已经检查过或者是管理员，或者引用了已存在的图）
                 // 注意：如果旧图是REJECTED，但这次通过了审核（或者这次是管理员），新记录应该是APPROVED
                 // 但如果这次没通过审核（WeChat Failed），则应该是PENDING
@@ -108,6 +107,9 @@ public class ImageService {
                                 "图片正在审核中，审核通过后才能使用" : "上传成功")
                         .build();
             }
+
+            // 0. 检查并增加用户配额（在实际上传前执行）
+            checkAndIncrementQuota(user);
 
             // 2. 上传原图 (Color)
             String originalUrl = minioService.upload(file);
@@ -122,9 +124,6 @@ public class ImageService {
 
             // 5. 保存数据库
             Image savedImage = saveImageRecord(userId, file, originalUrl, processedUrl, md5, initialStatus, auditReason);
-
-            // 增加用户上传计数
-            incrementUserQuota(user);
 
             return ImageUploadVO.builder()
                     .id(savedImage.getId())
@@ -317,9 +316,9 @@ public class ImageService {
     }
 
     /**
-     * 检查用户今日上传配额
+     * 检查并增加用户今日上传配额（原子操作，避免竞态条件）
      */
-    private void checkUserQuota(User user) {
+    private void checkAndIncrementQuota(User user) {
         // 管理员不限制
         if (UserRole.ADMIN.getCode().equals(user.getRole())) {
             return;
@@ -328,34 +327,24 @@ public class ImageService {
         String date = LocalDate.now().toString();
         String key = String.format("upload:daily:image:%d:%s", user.getId(), date);
 
-        Object countObj = redisTemplate.opsForValue().get(key);
-        int count = countObj == null ? 0 : Integer.parseInt(countObj.toString());
-
-        if (count >= imageDailyLimit) {
-            log.warn("用户今日图片上传已达上限: userId={}, count={}, limit={}", user.getId(), count, imageDailyLimit);
-            throw new BusinessException("今日图片上传已达上限(" + imageDailyLimit + "张)，请明天再试");
-        }
-    }
-
-    /**
-     * 增加用户今日上传计数
-     */
-    private void incrementUserQuota(User user) {
-        // 管理员不限制，不计数（或者也可以计数但不限制）
-        if (UserRole.ADMIN.getCode().equals(user.getRole())) {
-            return;
-        }
-
-        String date = LocalDate.now().toString();
-        String key = String.format("upload:daily:image:%d:%s", user.getId(), date);
-
+        // 先增加计数（原子操作）
         Long count = redisTemplate.opsForValue().increment(key);
+
         // 如果是第一次计数，设置过期时间到当天23:59:59
         if (count != null && count == 1) {
             LocalDateTime endOfDay = LocalDate.now().atTime(23, 59, 59);
             long secondsUntilEndOfDay = Duration.between(LocalDateTime.now(), endOfDay).getSeconds();
             redisTemplate.expire(key, Duration.ofSeconds(secondsUntilEndOfDay));
         }
+
+        // 检查是否超过限制
+        if (count != null && count > imageDailyLimit) {
+            // 超过了，减回去
+            redisTemplate.opsForValue().decrement(key);
+            log.warn("用户今日图片上传已达上限: userId={}, count={}, limit={}", user.getId(), count, imageDailyLimit);
+            throw new BusinessException("今日图片上传已达上限(" + imageDailyLimit + "张)，请明天再试");
+        }
+
         log.info("用户今日图片上传计数增加: userId={}, current={}", user.getId(), count);
     }
 }

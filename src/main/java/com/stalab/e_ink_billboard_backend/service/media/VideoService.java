@@ -69,11 +69,13 @@ public class VideoService {
         if (user == null) {
             throw new BusinessException("用户不存在");
         }
-        checkUserQuota(user);
 
         String originalFileName = file.getOriginalFilename();
 
         try {
+            // 0. 检查并增加用户配额（在实际上传前执行）
+            checkAndIncrementQuota(user);
+
             // 2. 上传原视频 (必须同步做，否则文件流会关闭)
             String originalUrl = minioService.upload(file);
 
@@ -89,9 +91,6 @@ public class VideoService {
             video.setAuditStatus(UserRole.ADMIN.getCode().equals(user.getRole()) ? AuditStatus.APPROVED.name() : AuditStatus.PENDING.name());
 
             videoMapper.insert(video);
-
-            // 增加计数
-            incrementUserQuota(user);
 
             // 4. ★★★ 启动异步处理 ★★★
             byte[] videoBytes = file.getBytes();
@@ -219,9 +218,9 @@ public class VideoService {
     }
 
     /**
-     * 检查用户今日上传配额
+     * 检查并增加用户今日上传配额（原子操作，避免竞态条件）
      */
-    private void checkUserQuota(User user) {
+    private void checkAndIncrementQuota(User user) {
         // 管理员不限制
         if (UserRole.ADMIN.getCode().equals(user.getRole())) {
             return;
@@ -230,34 +229,24 @@ public class VideoService {
         String date = LocalDate.now().toString();
         String key = String.format("upload:daily:video:%d:%s", user.getId(), date);
 
-        Object countObj = redisTemplate.opsForValue().get(key);
-        int count = countObj == null ? 0 : Integer.parseInt(countObj.toString());
-
-        if (count >= videoDailyLimit) {
-            log.warn("用户今日视频上传已达上限: userId={}, count={}, limit={}", user.getId(), count, videoDailyLimit);
-            throw new BusinessException("今日视频上传已达上限(" + videoDailyLimit + "个)，请明天再试");
-        }
-    }
-
-    /**
-     * 增加用户今日上传计数
-     */
-    private void incrementUserQuota(User user) {
-        // 管理员不限制
-        if (UserRole.ADMIN.getCode().equals(user.getRole())) {
-            return;
-        }
-
-        String date = LocalDate.now().toString();
-        String key = String.format("upload:daily:video:%d:%s", user.getId(), date);
-
+        // 先增加计数（原子操作）
         Long count = redisTemplate.opsForValue().increment(key);
+
+        // 如果是第一次计数，设置过期时间到当天23:59:59
         if (count != null && count == 1) {
-            // 设置过期时间到当天23:59:59，确保每日0点重置
             LocalDateTime endOfDay = LocalDate.now().atTime(23, 59, 59);
             long secondsUntilEndOfDay = Duration.between(LocalDateTime.now(), endOfDay).getSeconds();
             redisTemplate.expire(key, Duration.ofSeconds(secondsUntilEndOfDay));
         }
+
+        // 检查是否超过限制
+        if (count != null && count > videoDailyLimit) {
+            // 超过了，减回去
+            redisTemplate.opsForValue().decrement(key);
+            log.warn("用户今日视频上传已达上限: userId={}, count={}, limit={}", user.getId(), count, videoDailyLimit);
+            throw new BusinessException("今日视频上传已达上限(" + videoDailyLimit + "个)，请明天再试");
+        }
+
         log.info("用户今日视频上传计数增加: userId={}, current={}", user.getId(), count);
     }
 }
