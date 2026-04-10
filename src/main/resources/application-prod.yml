@@ -84,24 +84,26 @@ jwt:
   header: Authorization
 
 minio:
-  endpoint: http://${myip}:9000
+  # 优先从环境变量读取，如果没有则使用 IP:端口格式（兼容旧配置）
+  endpoint: ${MINIO_ENDPOINT:http://${myip}:9000}
   access-key: ${minio_access_key}
   secret-key: ${minio_secret_key}
-  bucket-name: eink-images
+  bucket-name: ${MINIO_BUCKET_NAME:eink-images}
   # 是否使用Presigned URL（如果bucket是私有的，必须设为true）
   # 如果bucket是公开的，可以设为false直接使用永久URL
-  use-presigned-url: true
+  use-presigned-url: ${MINIO_USE_PRESIGNED_URL:true}
   # Presigned URL的有效期（小时），默认2小时
   # 建议设置为1-2小时，确保ESP32有足够时间下载
-  presigned-url-expiry-hours: 2
+  presigned-url-expiry-hours: ${MINIO_PRESIGNED_URL_EXPIRY_HOURS:2}
 
 mqtt:
   # MQTT Broker地址（EMQX服务器）
-  broker-url: tcp://${myip}:1883
+  # 优先从环境变量读取，如果没有则使用 IP:端口格式（兼容旧配置）
+  broker-url: ${MQTT_BROKER_URL:tcp://${myip}:1883}
   # MQTT用户名
-  username: ${emqx_username}
+  username: ${emqx_username:${MQTT_USERNAME:}}
   # MQTT密码
-  password: ${emqx_password}
+  password: ${emqx_password:${MQTT_PASSWORD:}}
   # MQTT客户端ID（唯一标识，使用随机值避免冲突）
   client-id: eink-backend-${random.value}
   # 默认QoS等级（0-最多一次，1-至少一次，2-仅一次）
