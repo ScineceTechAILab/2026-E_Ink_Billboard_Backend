@@ -114,8 +114,11 @@ services:
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
       SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_password123}
-      # MinIO 配置 - 使用容器名
-      MINIO_ENDPOINT: http://minio:9000
+      # MinIO 配置
+      # 内部连接地址（用于后端连接 MinIO）
+      MINIO_INTERNAL_ENDPOINT: http://minio:9000
+      # 外部访问地址（用于生成返回给前端的 URL）
+      MINIO_ENDPOINT: http://${SERVER_IP:-localhost}:9000
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minio_password123}
       MINIO_BUCKET_NAME: eink-images

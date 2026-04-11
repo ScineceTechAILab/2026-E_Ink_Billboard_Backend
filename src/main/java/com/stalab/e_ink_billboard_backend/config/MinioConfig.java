@@ -11,6 +11,9 @@ public class MinioConfig {
     @Value("${minio.endpoint}")
     private String endpoint;
 
+    @Value("${minio.internal-endpoint:${minio.endpoint}}")
+    private String internalEndpoint;
+
     @Value("${minio.access-key}")
     private String accessKey;
 
@@ -19,8 +22,14 @@ public class MinioConfig {
 
     @Bean
     public MinioClient minioClient() {
+        // 优先使用内部地址连接 MinIO（用于容器间通信）
+        // 如果没有配置内部地址，则使用外部地址
+        String connectEndpoint = internalEndpoint != null && !internalEndpoint.isEmpty()
+                ? internalEndpoint
+                : endpoint;
+
         return MinioClient.builder()
-                .endpoint(endpoint)
+                .endpoint(connectEndpoint)
                 .credentials(accessKey, secretKey)
                 .build();
     }
