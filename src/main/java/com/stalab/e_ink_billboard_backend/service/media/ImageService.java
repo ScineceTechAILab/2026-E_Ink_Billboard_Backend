@@ -219,37 +219,49 @@ public class ImageService {
             size = 100L;
         }
 
-        // 构建查询条件
-        LambdaQueryWrapper<Image> queryWrapper = new LambdaQueryWrapper<>();
+        // 构建查询条件 - 用于 count（不包含排序）
+        LambdaQueryWrapper<Image> countWrapper = new LambdaQueryWrapper<>();
 
         // 文件名模糊搜索
         if (StrUtil.isNotBlank(fileName)) {
-            queryWrapper.like(Image::getFileName, fileName);
+            countWrapper.like(Image::getFileName, fileName);
+        }
+        // 指定用户（单个）
+        if (userId != null) {
+            countWrapper.eq(Image::getUserId, userId);
+        }
+        // 指定用户（多个）
+        if (userIds != null && !userIds.isEmpty()) {
+            countWrapper.in(Image::getUserId, userIds);
+        }
+        if (auditStatus != null) {
+            countWrapper.eq(Image::getAuditStatus, auditStatus);
         }
 
-        // 指定用户（单个）
+        // 查询总数
+        Long total = imageMapper.selectCount(countWrapper);
+
+        // 构建查询条件 - 用于查询数据（包含排序）
+        LambdaQueryWrapper<Image> queryWrapper = new LambdaQueryWrapper<>();
+
+        // 同样的条件
+        if (StrUtil.isNotBlank(fileName)) {
+            queryWrapper.like(Image::getFileName, fileName);
+        }
         if (userId != null) {
             queryWrapper.eq(Image::getUserId, userId);
         }
-
-        // 指定用户（多个）
         if (userIds != null && !userIds.isEmpty()) {
             queryWrapper.in(Image::getUserId, userIds);
         }
-
         if (auditStatus != null) {
             queryWrapper.eq(Image::getAuditStatus, auditStatus);
         }
 
         // 排序逻辑
         if (prioritizeSelf && currentUserId != null) {
-            // 本人优先，然后按时间倒序
-            // 使用 last 拼接 SQL 实现自定义排序
-            // 注意：这会覆盖掉之前的 orderBy，所以必须放在最后
-            // 安全性：currentUserId 是 Long 类型，无注入风险
             queryWrapper.last(String.format("ORDER BY CASE WHEN user_id = %d THEN 0 ELSE 1 END, create_time DESC", currentUserId));
         } else {
-            // 普通排序
             if ("asc".equalsIgnoreCase(sortOrder)) {
                 queryWrapper.orderByAsc(Image::getCreateTime);
             } else {
@@ -259,10 +271,6 @@ public class ImageService {
 
         // 分页查询
         Page<Image> page = new Page<>(current, size);
-        // 先查询总数（避免自定义排序影响 count）
-        Long total = imageMapper.selectCount(queryWrapper);
-
-        // 查询数据
         IPage<Image> pageResult = imageMapper.selectPage(page, queryWrapper);
         // 设置正确的 total
         pageResult.setTotal(total);
