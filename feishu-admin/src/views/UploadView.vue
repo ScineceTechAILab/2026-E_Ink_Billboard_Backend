@@ -1,40 +1,44 @@
 <template>
-  <div class="ink-upload-page">
-    <!-- Background -->
-    <div class="ink-grid-bg" />
-
-    <!-- Header -->
-    <header class="ink-page-header">
-      <div class="ink-container">
-        <div class="ink-header-content">
-          <div class="ink-header-brand">
-            <div class="ink-header-icon ink-glow-box">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
-              </svg>
-            </div>
-            <div>
-              <h1 class="ink-heading ink-heading-4">图片上传</h1>
-              <p class="ink-body">支持拖拽、点击、粘贴三种上传方式</p>
-            </div>
+  <div class="min-h-screen p-6">
+    <div class="max-w-6xl mx-auto space-y-6">
+      <div class="card animate-slide-up">
+        <div class="flex items-center justify-between">
+          <div>
+            <h1 class="text-2xl font-bold text-gray-800 mb-1">
+              <span class="mr-2">📸</span>
+              图片上传
+            </h1>
+            <p class="text-gray-500">支持拖拽、点击、粘贴三种上传方式 ✨</p>
           </div>
-          <button @click="goBack" class="ink-btn ink-btn-secondary">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M19 12H5M12 19l-7-7 7-7" />
-            </svg>
+          <button @click="goBack" class="btn-secondary">
+            <span class="mr-2">←</span>
             返回
           </button>
         </div>
-      </div>
-    </header>
 
-    <!-- Main Content -->
-    <main class="ink-page-main">
-      <div class="ink-container">
-        <!-- Upload Zone -->
+        <!-- 分页 -->
+        <div class="flex justify-center mt-6" v-if="pagination.total > 0">
+          <el-pagination
+            v-model:current-page="pagination.current"
+            v-model:page-size="pagination.size"
+            :total="pagination.total"
+            :page-sizes="[10, 20, 50, 100]"
+            layout="total, sizes, prev, pager, next, jumper"
+            @size-change="handlePageChange"
+            @current-change="handlePageChange"
+          />
+        </div>
+      </div>
+
+      <div class="card animate-slide-up" style="animation-delay: 0.1s">
         <div
-          class="ink-card ink-upload-zone"
-          :class="{ 'ink-upload-active': isDragOver, 'ink-upload-disabled': uploadingFiles.length > 0 }"
+          ref="dropZoneRef"
+          class="drop-zone border-3 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all duration-300"
+          :class="
+            isDragOver
+              ? 'border-amber-400 bg-amber-50'
+              : 'border-gray-200 hover:border-amber-300 hover:bg-amber-50/50'
+          "
           @dragover.prevent="isDragOver = true"
           @dragleave.prevent="isDragOver = false"
           @drop.prevent="handleDrop"
@@ -46,275 +50,217 @@
             accept="image/jpeg,image/png,image/gif,image/webp"
             multiple
             @change="handleFileSelect"
-            class="ink-hidden-input"
+            class="hidden"
           />
-          <div class="ink-upload-content">
-            <div class="ink-upload-icon" :class="{ 'ink-upload-pulse': isDragOver }">
-              <svg v-if="isDragOver" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" />
-              </svg>
-              <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                <circle cx="8.5" cy="8.5" r="1.5" />
-                <polyline points="21 15 16 10 5 21" />
-              </svg>
-            </div>
-            <h3 class="ink-upload-title">
-              {{ isDragOver ? '松开鼠标上传图片' : '拖拽图片到这里' }}
-            </h3>
-            <p class="ink-upload-hint">
-              或点击选择文件 · 支持 JPG、PNG、GIF、WebP · 单张 ≤ 5MB
-            </p>
-            <div class="ink-upload-formats">
-              <span class="ink-format-tag">JPG</span>
-              <span class="ink-format-tag">PNG</span>
-              <span class="ink-format-tag">GIF</span>
-              <span class="ink-format-tag">WebP</span>
-            </div>
+          <div class="text-6xl mb-4">
+            {{ isDragOver ? '📥' : '🖼️' }}
           </div>
+          <p class="text-lg font-semibold text-gray-700 mb-2">
+            {{ isDragOver ? '松开鼠标上传图片' : '拖拽图片到这里，或点击选择' }}
+          </p>
+          <p class="text-gray-500 text-sm">
+            支持 JPG、PNG、GIF、WebP 格式，单张 ≤ 5MB，最多 20 张
+          </p>
+        </div>
+      </div>
+
+      <div v-if="uploadingFiles.length > 0" class="space-y-6">
+        <div class="card animate-slide-up" style="animation-delay: 0.2s">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-semibold text-gray-800">
+              <span class="mr-2">📤</span>
+              上传队列
+            </h2>
+            <div class="text-sm text-gray-500">总体进度: {{ overallProgress }}%</div>
+          </div>
+          <el-progress :percentage="overallProgress" :stroke-width="8" :color="progressColor" />
         </div>
 
-        <!-- Upload Progress -->
-        <div v-if="uploadingFiles.length > 0" class="ink-upload-progress ink-card">
-          <div class="ink-progress-header">
-            <h3 class="ink-card-title">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-              </svg>
-              上传队列 ({{ uploadingFiles.length }})
-            </h3>
-            <span class="ink-progress-text">{{ overallProgress }}%</span>
-          </div>
-          <div class="ink-progress">
+        <div class="card animate-slide-up" style="animation-delay: 0.3s">
+          <div class="space-y-4">
             <div
-              class="ink-progress-bar"
-              :style="{ width: overallProgress + '%' }"
-            />
-          </div>
-        </div>
-
-        <!-- Uploading Files List -->
-        <div v-if="uploadingFiles.length > 0" class="ink-files-list ink-card">
-          <div
-            v-for="file in uploadingFiles"
-            :key="file.id"
-            class="ink-file-item"
-          >
-            <div class="ink-file-preview">
-              <img v-if="file.url" :src="file.url" :alt="file.file.name" />
-              <div v-else class="ink-file-placeholder">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                  <circle cx="8.5" cy="8.5" r="1.5" />
-                  <polyline points="21 15 16 10 5 21" />
-                </svg>
-              </div>
-            </div>
-            <div class="ink-file-info">
-              <p class="ink-file-name">{{ file.file.name }}</p>
-              <p class="ink-file-size">
-                {{ formatFileSize(file.originalSize) }}
-                <span v-if="file.compressedSize" class="ink-file-saved">
-                  → {{ formatFileSize(file.compressedSize) }}
-                  (节省 {{ formatFileSize(file.originalSize - file.compressedSize) }})
-                </span>
-              </p>
-              <div class="ink-file-progress">
-                <div v-if="file.status === 'uploading'" class="ink-file-progress-bar">
-                  <div
-                    class="ink-progress ink-progress-sm"
-                    style="flex: 1;"
-                  >
-                    <div
-                      class="ink-progress-bar"
-                      :style="{ width: file.progress + '%' }"
-                    />
-                  </div>
-                  <button @click.stop="cancelUpload(file)" class="ink-icon-btn ink-icon-btn-sm">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                    </svg>
-                  </button>
-                </div>
-                <div v-else-if="file.status === 'success'" class="ink-file-status ink-file-status-success">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
-                    <polyline points="22 4 12 14.01 9 11.01" />
-                  </svg>
-                  上传成功
-                </div>
-                <div v-else-if="file.status === 'error'" class="ink-file-status ink-file-status-error">
-                  <span>{{ file.error }}</span>
-                  <button @click.stop="retryUpload(file)" class="ink-btn ink-btn-ghost ink-btn-xs">
-                    重试
-                  </button>
-                </div>
-                <div v-else class="ink-file-status ink-file-status-pending">等待中...</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Search & Filter -->
-        <div class="ink-card ink-filter-bar">
-          <div class="ink-filter-group">
-            <div class="ink-search-box">
-              <svg class="ink-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <circle cx="11" cy="11" r="8" />
-                <path d="M21 21l-4.35-4.35" />
-              </svg>
-              <input
-                v-model="searchForm.fileName"
-                type="text"
-                placeholder="搜索图片名称..."
-                class="ink-input"
-                @input="handleSearch"
-              />
-            </div>
-
-            <el-select
-              v-model="searchForm.userIds"
-              multiple
-              collapse-tags
-              collapse-tags-tooltip
-              placeholder="筛选用户"
-              clearable
-              filterable
-              remote
-              :remote-method="remoteUserMethod"
-              :loading="userLoading"
-              @change="handleSearch"
-              class="ink-select"
+              v-for="file in uploadingFiles"
+              :key="file.id"
+              class="flex items-center gap-4 p-4 bg-gray-50 rounded-xl"
             >
-              <el-option
-                v-for="user in filteredUserList"
-                :key="user.id"
-                :label="user.nickname"
-                :value="user.id"
-              />
-            </el-select>
-
-            <div class="ink-sort-toggle">
-              <button
-                :class="['ink-sort-btn', { 'ink-sort-active': searchForm.sortOrder === 'desc' }]"
-                @click="toggleSort('desc')"
-              >
-                最新
-              </button>
-              <button
-                :class="['ink-sort-btn', { 'ink-sort-active': searchForm.sortOrder === 'asc' }]"
-                @click="toggleSort('asc')"
-              >
-                最早
-              </button>
-            </div>
-
-            <button @click="handleReset" class="ink-btn ink-btn-ghost">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="23 4 23 10 17 10" />
-                <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
-              </svg>
-              重置
-            </button>
-          </div>
-        </div>
-
-        <!-- Images Gallery -->
-        <div class="ink-images-section ink-card">
-          <h3 class="ink-card-title">
-<!--            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">-->
-<!--              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />-->
-<!--              <circle cx="8.5" cy="8.5" r="1.5" />-->
-<!--              <polyline points="21 15 16 10 5 21" />-->
-<!--            </svg>-->
-            已上传图片 ({{ pagination.total }})
-          </h3>
-
-          <div v-if="uploadedImages.length > 0" class="ink-images-grid">
-            <div
-              v-for="image in uploadedImages"
-              :key="image.id"
-              class="ink-image-card"
-            >
-              <div class="ink-image-wrapper">
-                <img
-                  :src="image.processedUrl || image.originalUrl"
-                  :alt="image.fileName"
-                  loading="lazy"
-                  @click="viewImage(image.processedUrl || image.originalUrl)"
-                />
-                <div class="ink-image-overlay">
-                  <button @click.stop="viewImage(image.processedUrl || image.originalUrl)" class="ink-overlay-btn">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                      <circle cx="12" cy="12" r="3" />
-                    </svg>
-                  </button>
-                  <button @click.stop="copyImageUrl(image.processedUrl || image.originalUrl)" class="ink-overlay-btn">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                      <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
-                    </svg>
-                  </button>
-                  <button @click.stop="deleteImage(image)" class="ink-overlay-btn ink-overlay-btn-danger">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <polyline points="3 6 5 6 21 6" />
-                      <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />
-                    </svg>
-                  </button>
+              <div class="w-16 h-16 bg-gray-200 rounded-lg overflow-hidden flex-shrink-0">
+                <img v-if="file.url" :src="file.url" class="w-full h-full object-cover" />
+                <div v-else class="w-full h-full flex items-center justify-center text-2xl">
+                  🖼️
                 </div>
               </div>
-              <div class="ink-image-meta">
-                <p class="ink-image-name" :title="image.fileName">{{ image.fileName }}</p>
-                <div class="ink-image-footer">
-                  <span
-                    :class="[
-                      'ink-badge',
-                      image.auditStatus === 'APPROVED' ? 'ink-badge-success' : 'ink-badge-warning'
-                    ]"
-                  >
-                    {{ image.auditStatus === 'APPROVED' ? '已通过' : '审核中' }}
+
+              <div class="flex-1 min-w-0">
+                <p class="font-medium text-gray-800 truncate">{{ file.file.name }}</p>
+                <p class="text-sm text-gray-500">
+                  {{ formatFileSize(file.originalSize) }}
+                  <span v-if="file.compressedSize" class="ml-2 text-green-600">
+                    → {{ formatFileSize(file.compressedSize) }} (节省
+                    {{ formatFileSize(file.originalSize - file.compressedSize) }})
                   </span>
-                  <span class="ink-image-size">{{ formatFileSize(image.fileSize) }}</span>
+                </p>
+                <div class="mt-2">
+                  <div v-if="file.status === 'uploading'" class="flex items-center gap-2">
+                    <el-progress :percentage="file.progress" :stroke-width="6" style="flex: 1" />
+                    <button
+                      @click="cancelUpload(file)"
+                      class="text-gray-400 hover:text-red-500"
+                      aria-label="取消上传"
+                    >
+                      <el-icon><Close /></el-icon>
+                    </button>
+                  </div>
+                  <div v-else-if="file.status === 'success'" class="flex items-center gap-2 text-green-600">
+                    <el-icon><Check /></el-icon>
+                    <span>上传成功</span>
+                  </div>
+                  <div v-else-if="file.status === 'error'" class="flex items-center gap-2">
+                    <span class="text-red-500">{{ file.error }}</span>
+                    <button
+                      @click="retryUpload(file)"
+                      class="text-amber-500 hover:text-amber-600"
+                      aria-label="重新上传"
+                    >
+                      <el-icon><Refresh /></el-icon>
+                    </button>
+                  </div>
+                  <div v-else class="text-gray-400">等待上传...</div>
                 </div>
               </div>
             </div>
-          </div>
-
-          <div v-else class="ink-empty-state">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-              <circle cx="8.5" cy="8.5" r="1.5" />
-              <polyline points="21 15 16 10 5 21" />
-            </svg>
-            <p>暂无图片</p>
-            <p class="ink-empty-hint">点击上方区域或拖拽图片开始上传</p>
-          </div>
-
-          <!-- Pagination -->
-          <div v-if="pagination.total > pagination.size" class="ink-pagination">
-            <el-pagination
-              v-model:current-page="pagination.current"
-              v-model:page-size="pagination.size"
-              :total="pagination.total"
-              :page-sizes="[10, 20, 50, 100]"
-              layout="total, sizes, prev, pager, next, jumper"
-              @size-change="handlePageChange"
-              @current-change="handlePageChange"
-            />
           </div>
         </div>
       </div>
-    </main>
 
-    <!-- Image Viewer -->
-    <el-image-viewer
-      v-if="previewVisible"
-      :url-list="previewUrlList"
-      :initial-index="previewIndex"
-      @close="previewVisible = false"
-    />
+      <div class="card animate-slide-up" style="animation-delay: 0.4s">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-semibold text-gray-800">
+            <span class="mr-2">✅</span>
+            已上传图片
+          </h2>
+        </div>
+
+        <!-- 查询区块 -->
+        <div class="mb-6 p-4 bg-gray-50 rounded-xl space-y-4">
+          <div class="flex flex-wrap items-center gap-4">
+            <!-- 搜索框 -->
+            <div class="flex-1 min-w-[200px]">
+              <el-input
+                v-model="searchForm.fileName"
+                placeholder="搜索图片名称..."
+                clearable
+                :prefix-icon="Search"
+                @input="handleSearch"
+              />
+            </div>
+            
+            <!-- 用户筛选 -->
+            <div class="w-[200px]">
+              <el-select
+                v-model="searchForm.userIds"
+                multiple
+                collapse-tags
+                collapse-tags-tooltip
+                placeholder="筛选上传用户"
+                clearable
+                filterable
+                remote
+                :remote-method="remoteUserMethod"
+                :loading="userLoading"
+                @change="handleSearch"
+                no-match-text="无相关用户"
+                no-data-text="无相关用户"
+              >
+                <el-option
+                  v-for="user in filteredUserList"
+                  :key="user.id"
+                  :label="user.nickname"
+                  :value="user.id"
+                />
+              </el-select>
+            </div>
+
+            <!-- 排序 -->
+            <el-button-group>
+              <el-button 
+                :type="searchForm.sortOrder === 'desc' ? 'primary' : 'default'" 
+                @click="toggleSort('desc')"
+              >
+                时间倒序
+              </el-button>
+              <el-button 
+                :type="searchForm.sortOrder === 'asc' ? 'primary' : 'default'" 
+                @click="toggleSort('asc')"
+              >
+                时间正序
+              </el-button>
+            </el-button-group>
+
+            <!-- 重置 -->
+            <el-button :icon="Refresh" @click="handleReset">重置</el-button>
+          </div>
+        </div>
+
+        <div v-if="uploadedImages.length > 0" class="columns-1 sm:columns-2 md:columns-3 lg:columns-4 gap-4 space-y-4">
+          <div
+            v-for="image in uploadedImages"
+            :key="image.id"
+            class="break-inside-avoid bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow"
+          >
+            <div class="relative group">
+              <img :src="image.processedUrl || image.originalUrl" class="w-full" alt="上传的图片" />
+              <div
+                class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2"
+              >
+                <button
+                  @click="viewImage(image.processedUrl || image.originalUrl)"
+                  class="w-10 h-10 bg-white rounded-full flex items-center justify-center text-gray-700 hover:bg-amber-100 transition-colors"
+                  aria-label="查看原图"
+                >
+                  <el-icon><View /></el-icon>
+                </button>
+                <button
+                  @click="copyImageUrl(image.processedUrl || image.originalUrl)"
+                  class="w-10 h-10 bg-white rounded-full flex items-center justify-center text-gray-700 hover:bg-amber-100 transition-colors"
+                  aria-label="复制链接"
+                >
+                  <el-icon><DocumentCopy /></el-icon>
+                </button>
+                <button
+                  @click="deleteImage(image)"
+                  class="w-10 h-10 bg-white rounded-full flex items-center justify-center text-red-500 hover:bg-red-100 transition-colors"
+                  aria-label="删除图片"
+                >
+                  <el-icon><Delete /></el-icon>
+                </button>
+              </div>
+            </div>
+            <div class="p-3">
+              <p class="text-sm text-gray-700 truncate">{{ image.fileName }}</p>
+              <div class="flex items-center justify-between mt-2">
+                <span
+                  :class="[
+                    'badge',
+                    image.auditStatus === 'APPROVED' ? 'badge-success' : 'badge-warning'
+                  ]"
+                >
+                  {{ image.auditStatus === 'APPROVED' ? '已通过' : '审核中' }}
+                </span>
+                <span class="text-xs text-gray-400">{{ formatFileSize(image.fileSize) }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <el-empty v-else description="暂无图片" />
+      </div>
+
+      <el-image-viewer
+        v-if="previewVisible"
+        :url-list="previewUrlList"
+        :initial-index="previewIndex"
+        @close="previewVisible = false"
+      />
+    </div>
   </div>
 </template>
 
@@ -322,6 +268,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Close, Check, Refresh, View, DocumentCopy, Delete, Search } from '@element-plus/icons-vue'
 import imageCompression from 'browser-image-compression'
 import { imageApi, adminApi } from '@/api'
 import type { UploadingFile, ImageVO, UserVO } from '@/types'
@@ -338,7 +285,7 @@ const previewIndex = ref(0)
 const cancelControllers = ref<Map<string, AbortController>>(new Map())
 const retryCounts = ref<Map<string, number>>(new Map())
 
-// Search & Filter
+// 查询相关
 const searchForm = ref({
   fileName: '',
   userIds: [] as number[],
@@ -370,6 +317,12 @@ const overallProgress = computed(() => {
   if (uploadingFiles.value.length === 0) return 0
   const total = uploadingFiles.value.reduce((sum, f) => sum + f.progress, 0)
   return Math.round(total / uploadingFiles.value.length)
+})
+
+const progressColor = computed(() => {
+  if (overallProgress.value === 100) return '#52c41a'
+  if (overallProgress.value > 50) return '#faad14'
+  return '#f97316'
 })
 
 const formatFileSize = (bytes: number): string => {
@@ -464,7 +417,21 @@ const uploadFile = async (uploadingFile: UploadingFile) => {
       uploadingFiles.value[idx].url = res.data.url
       uploadingFiles.value[idx].progress = 100
 
+      const imageVO: ImageVO = {
+        id: res.data.id,
+        userId: 0,
+        fileName: uploadingFile.file.name,
+        fileSize: uploadingFile.compressedSize || uploadingFile.file.size,
+        originalUrl: res.data.url,
+        processedUrl: res.data.url,
+        auditStatus: res.data.auditStatus,
+        auditReason: null,
+        createTime: new Date().toISOString()
+      }
+      // uploadedImages.value.unshift(imageVO)
+      // 重新加载列表以保持一致性
       handleSearch()
+
       ElMessage.success(res.data.auditMessage || '上传成功')
     }
   } catch (error: any) {
@@ -620,7 +587,7 @@ const handleSearch = () => {
 const toggleSort = (order: 'asc' | 'desc') => {
   if (searchForm.value.sortOrder === order) return
   searchForm.value.sortOrder = order
-  handleSearch()
+  handleSearch() // 立即触发，不需要防抖
 }
 
 const handleReset = () => {
@@ -667,496 +634,7 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-@import '../styles/design-system.css';
-
-.ink-upload-page {
-  min-height: 100vh;
-  background: var(--ink-black);
-}
-
-.ink-page-header {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: var(--z-fixed);
-  background: rgba(10, 10, 11, 0.8);
-  backdrop-filter: blur(20px);
-  border-bottom: 1px solid var(--ghost-border);
-}
-
-.ink-header-content {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-4) 0;
-}
-
-.ink-header-brand {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-}
-
-.ink-header-icon {
-  width: 48px;
-  height: 48px;
-  background: rgba(16, 185, 129, 0.1);
-  border: 1px solid rgba(16, 185, 129, 0.2);
-  border-radius: var(--radius-xl);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--forest-400);
-}
-
-.ink-header-icon svg {
-  width: 24px;
-  height: 24px;
-}
-
-.ink-page-main {
-  padding-top: 120px;
-  padding-bottom: var(--space-8);
-}
-
-.ink-hidden-input {
-  display: none;
-}
-
-/* Upload Zone */
-.ink-upload-zone {
-  padding: var(--space-6);
-  text-align: center;
-  cursor: pointer;
-  border: 2px dashed var(--ghost-border);
-  background: linear-gradient(145deg, rgba(28, 28, 31, 0.5) 0%, rgba(20, 20, 22, 0.8) 100%);
-  transition: all var(--transition-base);
-}
-
-.ink-upload-zone:hover,
-.ink-upload-active {
-  border-color: var(--forest-500);
-  background: rgba(16, 185, 129, 0.05);
-}
-
-.ink-upload-disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-
-.ink-upload-icon {
-  width: 20px;
-  height: 20px;
-  margin: 0 auto var(--space-2);
-  background: var(--ink-slate);
-  border-radius: var(--radius-md);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--forest-400);
-  transition: all var(--transition-base);
-}
-
-.ink-upload-icon svg {
-  width: 12px;
-  height: 12px;
-}
-
-.ink-upload-active .ink-upload-icon {
-  background: rgba(16, 185, 129, 0.2);
-  transform: scale(1.1);
-}
-
-.ink-upload-pulse {
-  animation: pulse-glow 1.5s ease-in-out infinite;
-}
-
-@keyframes pulse-glow {
-  0%, 100% {
-    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
-  }
-  50% {
-    box-shadow: 0 0 0 20px rgba(16, 185, 129, 0);
-  }
-}
-
-.ink-upload-title {
-  font-family: var(--font-display);
-  font-size: var(--text-xl);
-  font-weight: 600;
-  color: var(--paper-white);
-  margin-bottom: var(--space-2);
-}
-
-.ink-upload-hint {
-  color: var(--stone-500);
-  font-size: var(--text-sm);
-  margin-bottom: var(--space-4);
-}
-
-.ink-upload-formats {
-  display: flex;
-  justify-content: center;
-  gap: var(--space-2);
-}
-
-/* Upload Progress */
-.ink-upload-progress {
-  margin-top: var(--space-6);
-}
-
-.ink-progress-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--space-3);
-}
-
-.ink-progress-text {
-  font-family: var(--font-display);
-  font-size: var(--text-2xl);
-  font-weight: 700;
-  color: var(--forest-400);
-}
-
-.ink-progress-sm {
-  height: 4px;
-}
-
-/* Files List */
-.ink-files-list {
-  margin-top: var(--space-6);
-}
-
-.ink-file-item {
-  display: flex;
-  align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-4);
-  background: var(--ink-charcoal);
-  border-radius: var(--radius-xl);
-  margin-bottom: var(--space-3);
-}
-
-.ink-file-preview {
-  width: 64px;
-  height: 64px;
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  flex-shrink: 0;
-  background: var(--ink-slate);
-}
-
-.ink-file-preview img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.ink-file-placeholder {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--stone-500);
-}
-
-.ink-file-placeholder svg {
-  width: 28px;
-  height: 28px;
-}
-
-.ink-file-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.ink-file-name {
-  font-weight: 500;
-  color: var(--paper-white);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.ink-file-size {
-  font-size: var(--text-sm);
-  color: var(--stone-500);
-  margin-top: var(--space-1);
-}
-
-.ink-file-saved {
-  color: var(--forest-400);
-}
-
-.ink-file-progress {
-  margin-top: var(--space-2);
-}
-
-.ink-file-progress-bar {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.ink-file-status {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: var(--text-sm);
-}
-
-.ink-file-status-success {
-  color: var(--forest-400);
-}
-
-.ink-file-status-success svg {
-  width: 16px;
-  height: 16px;
-}
-
-.ink-file-status-error {
-  color: #f87171;
-}
-
-.ink-file-status-pending {
-  color: var(--stone-500);
-}
-
-.ink-icon-btn-sm {
-  width: 32px;
-  height: 32px;
-}
-
-.ink-icon-btn-sm svg {
-  width: 16px;
-  height: 16px;
-}
-
-.ink-btn-xs {
-  padding: var(--space-1) var(--space-2);
-  font-size: var(--text-xs);
-}
-
-/* Filter Bar */
-.ink-filter-bar {
-  margin-top: var(--space-6);
-}
-
-.ink-filter-group {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-}
-
-.ink-search-box {
-  position: relative;
-  flex: 1;
-  min-width: 200px;
-}
-
-.ink-search-icon {
-  position: absolute;
-  left: var(--space-3);
-  top: 50%;
-  transform: translateY(-50%);
-  width: 18px;
-  height: 18px;
-  color: var(--stone-500);
-  pointer-events: none;
-}
-
-.ink-search-box .ink-input {
-  padding-left: var(--space-10);
-}
-
-.ink-select {
-  width: 160px;
-}
-
-.ink-sort-toggle {
-  display: flex;
-  background: var(--ink-charcoal);
-  border: 1px solid var(--ghost-border);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-}
-
-.ink-sort-btn {
-  padding: var(--space-2) var(--space-4);
-  font-size: var(--text-sm);
-  color: var(--stone-500);
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.ink-sort-active {
-  background: var(--forest-600);
-  color: var(--paper-white);
-}
-
-/* Images Section */
-.ink-images-section {
-  margin-top: var(--space-6);
-}
-
-.ink-images-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: var(--space-4);
-  margin-top: var(--space-4);
-}
-
-.ink-image-card {
-  background: var(--ink-charcoal);
-  border: 1px solid var(--ghost-border);
-  border-radius: var(--radius-xl);
-  overflow: hidden;
-  transition: all var(--transition-base);
-}
-
-.ink-image-card:hover {
-  transform: translateY(-4px);
-  border-color: rgba(16, 185, 129, 0.3);
-  box-shadow: var(--shadow-lg);
-}
-
-.ink-image-wrapper {
-  position: relative;
-  aspect-ratio: 1;
-  overflow: hidden;
-  cursor: pointer;
-}
-
-.ink-image-wrapper img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transition: transform var(--transition-slow);
-}
-
-.ink-image-card:hover .ink-image-wrapper img {
-  transform: scale(1.05);
-}
-
-.ink-image-overlay {
-  position: absolute;
-  inset: 0;
-  background: rgba(10, 10, 11, 0.8);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
-  opacity: 0;
-  transition: opacity var(--transition-base);
-}
-
-.ink-image-card:hover .ink-image-overlay {
-  opacity: 1;
-}
-
-.ink-overlay-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: var(--radius-lg);
-  background: var(--ink-slate);
-  border: 1px solid var(--ghost-border);
-  color: var(--paper-white);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.ink-overlay-btn:hover {
-  background: var(--forest-600);
-  border-color: var(--forest-500);
-}
-
-.ink-overlay-btn-danger:hover {
-  background: #dc2626;
-  border-color: #ef4444;
-}
-
-.ink-overlay-btn svg {
-  width: 18px;
-  height: 18px;
-}
-
-.ink-image-meta {
-  padding: var(--space-3);
-}
-
-.ink-image-name {
-  font-size: var(--text-sm);
-  font-weight: 500;
-  color: var(--paper-white);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin-bottom: var(--space-2);
-}
-
-.ink-image-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.ink-image-size {
-  font-size: var(--text-xs);
-  color: var(--stone-500);
-}
-
-/* Empty State */
-.ink-empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-16) 0;
-  color: var(--stone-500);
-}
-
-.ink-empty-state svg {
-  width: 64px;
-  height: 64px;
-  margin-bottom: var(--space-4);
-  opacity: 0.5;
-}
-
-.ink-empty-hint {
-  font-size: var(--text-sm);
-  color: var(--stone-700);
-  margin-top: var(--space-2);
-}
-
-/* Pagination */
-.ink-pagination {
-  margin-top: var(--space-6);
-  display: flex;
-  justify-content: center;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .ink-filter-group {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .ink-select {
-    width: 100%;
-  }
-
-  .ink-images-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
+.drop-zone {
+  min-height: 200px;
 }
 </style>
