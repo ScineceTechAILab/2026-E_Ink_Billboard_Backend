@@ -130,6 +130,21 @@ services:
       emqx:
         condition: service_healthy
 
+  # 前端应用
+  frontend:
+    build:
+      context: ./feishu-admin
+      dockerfile: Dockerfile
+    container_name: eink-frontend
+    restart: always
+    ports:
+      - "80:80"
+    networks:
+      - eink-net
+    depends_on:
+      backend:
+        condition: service_started
+
 volumes:
   postgres_data:
   redis_data:

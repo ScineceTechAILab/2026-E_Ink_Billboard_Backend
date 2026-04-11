@@ -81,7 +81,7 @@ mvn clean package -DskipTests -s aliyun-settings.xml
 
 # 5. 停止旧的独立容器（如果存在）
 echo "5. [Docker] 检查并停止旧的独立容器..."
-OLD_CONTAINERS=("eink-postgres" "eink-redis" "eink-minio" "eink-emqx" "e-ink-container")
+OLD_CONTAINERS=("eink-postgres" "eink-redis" "eink-minio" "eink-emqx" "e-ink-container" "feishu-admin-frontend")
 for container in "${OLD_CONTAINERS[@]}"; do
     if docker ps -a --format '{{.Names}}' | grep -q "^${container}$"; then
         echo "   停止并删除旧容器: $container"
