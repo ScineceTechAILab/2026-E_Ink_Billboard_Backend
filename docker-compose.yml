@@ -57,7 +57,7 @@ services:
     networks:
       - eink-net
 
-  # MinIO 初始化 - 创建 bucket
+  # MinIO 初始化 - 创建 bucket 并设置为 public
   minio-init:
     image: minio/mc:latest
     container_name: eink-minio-init
@@ -68,7 +68,8 @@ services:
       sleep 10;
       mc alias set local http://minio:9000 ${MINIO_ACCESS_KEY:-minioadmin} ${MINIO_SECRET_KEY:-minio_password123};
       mc mb local/eink-images --ignore-existing;
-      echo 'Bucket eink-images created or already exists';
+      mc anonymous set public local/eink-images;
+      echo 'Bucket eink-images created and set to public';
       exit 0;
       "
     networks:
