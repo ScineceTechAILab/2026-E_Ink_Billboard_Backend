@@ -57,6 +57,24 @@ services:
     networks:
       - eink-net
 
+  # MinIO 初始化 - 创建 bucket
+  minio-init:
+    image: minio/mc:latest
+    container_name: eink-minio-init
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      sleep 10;
+      mc alias set local http://minio:9000 ${MINIO_ACCESS_KEY:-minioadmin} ${MINIO_SECRET_KEY:-minio_password123};
+      mc mb local/eink-images --ignore-existing;
+      echo 'Bucket eink-images created or already exists';
+      exit 0;
+      "
+    networks:
+      - eink-net
+    restart: "no"
+
   # EMQX MQTT Broker
   emqx:
     image: emqx/emqx:5.3.2
@@ -127,6 +145,8 @@ services:
         condition: service_healthy
       minio:
         condition: service_started
+      minio-init:
+        condition: service_completed_successfully
       emqx:
         condition: service_healthy
 
