@@ -141,6 +141,7 @@ public class ImageService {
 
     /**
      * 保存图片记录
+     *
      * @return 保存后的Image对象（包含ID）
      */
     private Image saveImageRecord(Long userId, MultipartFile file, String originalUrl, String processedUrl, String md5, AuditStatus status, String auditReason) {
@@ -160,8 +161,9 @@ public class ImageService {
 
     /**
      * 删除图片
-     * @param imageId 图片ID
-     * @param userId 当前用户ID
+     *
+     * @param imageId  图片ID
+     * @param userId   当前用户ID
      * @param userRole 当前用户角色
      */
     @Transactional(rollbackFor = Exception.class)
@@ -257,7 +259,14 @@ public class ImageService {
 
         // 分页查询
         Page<Image> page = new Page<>(current, size);
+        // 先查询总数（避免自定义排序影响 count）
+        Long total = imageMapper.selectCount(queryWrapper);
+
+        // 查询数据
         IPage<Image> pageResult = imageMapper.selectPage(page, queryWrapper);
+        // 设置正确的 total
+        pageResult.setTotal(total);
+
 
         // 批量查询用户信息以填充 uploadUser
         // 获取所有涉及的 userId
