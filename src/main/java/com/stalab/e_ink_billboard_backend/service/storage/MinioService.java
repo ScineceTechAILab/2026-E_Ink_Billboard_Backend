@@ -32,6 +32,9 @@ public class MinioService {
     @Value("${minio.endpoint}")
     private String endpoint;
 
+    @Value("${minio.internal-endpoint:${minio.endpoint}}")
+    private String internalEndpoint;
+
     /**
      * 是否使用Presigned URL（如果bucket是私有的，必须设为true）
      * 如果bucket是公开的，可以设为false直接使用永久URL
@@ -167,24 +170,26 @@ public class MinioService {
             urlWithoutQuery = url.substring(0, queryIndex);
         }
 
-        // URL格式: http://endpoint/bucket-name/object-name
-        // 或者: endpoint/bucket-name/object-name
+        // 尝试用外部endpoint解析
         String prefix = endpoint + "/" + bucketName + "/";
         if (urlWithoutQuery.startsWith(prefix)) {
             return urlWithoutQuery.substring(prefix.length());
+        }
+
+        // 尝试用内部endpoint解析（兼容旧数据）
+        String internalPrefix = internalEndpoint + "/" + bucketName + "/";
+        if (urlWithoutQuery.startsWith(internalPrefix)) {
+            return urlWithoutQuery.substring(internalPrefix.length());
         }
 
         // 如果URL包含bucket-name/，尝试提取后面的部分
         int bucketIndex = urlWithoutQuery.indexOf(bucketName + "/");
         if (bucketIndex >= 0) {
             String objectName = urlWithoutQuery.substring(bucketIndex + bucketName.length() + 1);
-            // 如果对象名包含路径分隔符，需要URL解码
-            // 但通常我们的对象名不包含特殊字符，所以直接返回
             return objectName;
         }
 
         // 如果以上都不匹配，可能存储的就是对象名本身（不包含路径）
-        // 检查是否包含斜杠，如果不包含，可能是纯对象名
         if (!urlWithoutQuery.contains("/")) {
             return urlWithoutQuery;
         }
