@@ -10,11 +10,11 @@ services:
     ports:
       - "80:80"
     networks:
-      - eink-server_eink-net
+      - 2026-e_ink_billboard_backend_eink-net
       - feishu-admin-network
 
 networks:
   feishu-admin-network:
     driver: bridge
-  eink-server_eink-net:
+  2026-e_ink_billboard_backend_eink-net:
     external: true
