@@ -138,6 +138,7 @@ services:
       WX_MP_AES_KEY: ${WX_MP_AES_KEY:-}
       FEISHU_APP_ID: ${FEISHU_APP_ID:-}
       FEISHU_APP_SECRET: ${FEISHU_APP_SECRET:-}
+      SERVER_IP: ${SERVER_IP:-62.234.92.187}
     ports:
       - "8081:8083"
     networks:
